@@ -63,97 +63,112 @@ const RolePermissionsPage = () => {
     }
   };
 
-  const handleAddRolePermission = async () => {
-    if (!newRolePermission.role) {
+  const handleAddRolePermission = async (payload) => {
+    const data = payload || newRolePermission;
+
+    if (!data.role) {
       alert('Please select a role');
       return;
     }
-    if (!newRolePermission.permission || newRolePermission.permission.length === 0) {
+    if (!data.permission || data.permission.length === 0) {
       alert('Please select at least one permission');
       return;
     }
 
-    // Ensure permission is an array of IDs
-    const permissionIds = newRolePermission.permission.map(perm => {
+    // Ensure permission is an array of numeric IDs
+    const permissionIds = (Array.isArray(data.permission) ? data.permission : []).map(perm => {
       if (typeof perm === 'number') return perm;
-      // If it's a string, try to find the permission object
+      const parsed = Number(perm);
+      if (!isNaN(parsed)) return parsed;
+      // If it's a name or object, try to find permission
       const found = permissions.find(p => p.name === perm || p.permission_id === perm);
       return found ? found.permission_id : perm;
     });
 
-    const payload = {
-      ...newRolePermission,
+    const payloadToSend = {
+      role: data.role,
       permission: permissionIds
     };
 
     try {
       setSubmitting(true);
-      const response = await api.rolePermissions.create(payload);
+      const response = await api.rolePermissions.create(payloadToSend);
       setRolePermissions([...rolePermissions, response.data]);
       setNewRolePermission({ role: "", permission: [] });
       setShowAddModal(false);
       setError(null);
+      return response;
     } catch (err) {
       console.error('Error creating role permission:', err);
       setError(err.response?.data?.message || 'Failed to create role permission');
+      throw err;
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleEditRolePermission = async () => {
-    // Debug logging to identify the issue
-    console.log('Selected Role Permission for Edit:', selectedRolePermission);
-    if (!selectedRolePermission) {
+  const handleEditRolePermission = async (payload) => {
+    // Use provided payload (from modal) or fallback to state
+    const selected = payload || selectedRolePermission;
+
+    console.log('Selected Role Permission for Edit:', selected);
+    if (!selected) {
       setError("No role permission selected for editing.");
       return;
     }
 
-    // Check for role_permission_id (primary identifier)
-    const rolePermissionId = selectedRolePermission.role_permission_id || selectedRolePermission.id;
-    if (!rolePermissionId) {
-      console.error('Missing role permission ID:', selectedRolePermission);
-      setError("Role permission ID is missing. Cannot update.");
+    // Determine role id for URL (backend expects role_id in the URL for this PUT)
+    const roleIdForUrl = (() => {
+      // Prefer explicit role id
+      if (selected.role && (typeof selected.role === 'number' || String(selected.role).trim() !== '')) return selected.role;
+      // Fallbacks (not ideal) - try role object fields
+      if (selected.role && typeof selected.role === 'object') return selected.role.role_id || selected.role.id || '';
+      return '';
+    })();
+
+    if (!roleIdForUrl) {
+      console.error('Missing role id for URL (role_id) in selected payload:', selected);
+      setError("Role id is missing. Cannot update.");
       return;
     }
-    if (!selectedRolePermission.role) {
+    if (!selected.role) {
       alert('Please select a role');
       return;
     }
-    if (!selectedRolePermission.permission || selectedRolePermission.permission.length === 0) {
+    if (!selected.permission || selected.permission.length === 0) {
       alert('Please select at least one permission');
       return;
     }
 
-    // Ensure permission is an array of IDs
-    const permissionIds = selectedRolePermission.permission.map(perm => {
+    // Ensure permission is an array of numeric IDs
+    const permissionIds = (Array.isArray(selected.permission) ? selected.permission : []).map(perm => {
       if (typeof perm === 'number') return perm;
-      // If it's a string, try to find the permission object
+      const parsed = Number(perm);
+      if (!isNaN(parsed)) return parsed;
+      // If it's a name or object, try to find permission
       const found = permissions.find(p => p.name === perm || p.permission_id === perm);
       return found ? found.permission_id : perm;
     });
 
     // Prepare clean payload - only send required fields
     const updatePayload = {
-      role: selectedRolePermission.role,
+      role: selected.role,
       permission: permissionIds
     };
 
     try {
       setSubmitting(true);
-      console.log(`Updating role permission with ID: ${rolePermissionId}`);
-      console.log('Clean update payload:', updatePayload);
-      console.log('API URL will be:', `/role-permissions/${rolePermissionId}`);
-      const response = await api.rolePermissions.update(rolePermissionId, updatePayload);
+      // console.log(`Updating role permissions for role id: ${roleIdForUrl}`);
+      // console.log('Clean update payload:', updatePayload);
+      // API expects role_id in the URL path
+      const response = await api.rolePermissions.update(roleIdForUrl, updatePayload);
       console.log('Update response:', response);
-      setRolePermissions(rolePermissions.map(rp => {
-        // Check both possible ID fields for matching
-        const currentId = rp.role_permission_id || rp.id;
-        return currentId === rolePermissionId ? response.data : rp;
-      }));
+      // Refresh list to ensure server-side canonical state (handles varying id shapes)
+      await fetchRolePermissions();
       setShowEditModal(false);
       setSelectedRolePermission(null);
       setError(null);
+      return response;
     } catch (err) {
       console.error('Error updating role permission:', err);
       console.error('Error response details:', {
@@ -177,6 +192,7 @@ const RolePermissionsPage = () => {
       }
       // Refresh data to ensure consistency
       fetchRolePermissions();
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -237,20 +253,28 @@ const RolePermissionsPage = () => {
       setError("Invalid role permission data.");
       return;
     }
+    // Normalize role to always be a role_id (number) for backend
+    let normalizedRoleId = '';
+    const rpRole = rolePermission.role;
 
-    // Normalize role to always be a number
-    let normalizedRoleId = rolePermission.role;
-    if (typeof normalizedRoleId === 'string') {
-      // Try to find the role by name
-      const foundRole = roles.find(r => r.name === normalizedRoleId);
-      if (foundRole) {
-        normalizedRoleId = foundRole.role_id;
-      } else {
-        // Try to parse as number
-        const parsed = Number(normalizedRoleId);
-        normalizedRoleId = isNaN(parsed) ? '' : parsed;
+    if (typeof rpRole === 'number') {
+      normalizedRoleId = rpRole;
+    } else if (typeof rpRole === 'string') {
+      // If string could be a numeric id
+      const parsed = Number(rpRole);
+      if (!isNaN(parsed)) normalizedRoleId = parsed;
+      else {
+        // Try to find the role object by name
+        const foundRole = roles.find(r => (r.name || String(r.role_id || r.id)) === rpRole);
+        if (foundRole) normalizedRoleId = foundRole.role_id || foundRole.id || '';
       }
+    } else if (rpRole && typeof rpRole === 'object') {
+      // If role is an object, extract its id field
+      normalizedRoleId = rpRole.role_id || rpRole.id || rpRole.roleId || '';
     }
+
+    // Ensure it's either a number or empty string
+    if (normalizedRoleId === undefined || normalizedRoleId === null) normalizedRoleId = '';
 
     // Set the selected role permission with normalized role ID
     setSelectedRolePermission({

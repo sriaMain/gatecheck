@@ -381,11 +381,6 @@ console.log(otpPayload)
           </button>
         );
       } else if (isVisitingDatePast(visitor.visiting_date)) {
-        // Show 'Past' label and reschedule button only if visitor is not CHECKED_IN
-        buttons.push(
-          <span key="past-label" className="inline-block px-2 py-1 mr-2 text-xs font-semibold text-gray-500 bg-gray-100 rounded">Past</span>
-        );
-        
         // Only show reschedule button if visitor is not CHECKED_IN
         if (visitor.status !== 'CHECKED_IN') {
           buttons.push(
@@ -545,9 +540,6 @@ console.log(otpPayload)
                           <div className="flex items-center mb-1">
                             <Calendar className="w-4 h-4 mr-2 text-gray-400" />
                             {new Date(visitor.visiting_date).toLocaleDateString()}
-                            {visitor.status === 'PENDING' && isVisitingTimeInPast(visitor.visiting_date, visitor.visiting_time) && (
-                              <span className="ml-2 px-1 py-0.5 text-xs bg-red-100 text-red-800 rounded">Past</span>
-                            )}
                           </div>
                           {visitor.visiting_time && (
                             <div className="flex items-center mb-1">
@@ -563,14 +555,40 @@ console.log(otpPayload)
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {!showRecurring && (
-                          <div className="flex items-center">
-                            <div className={`w-2 h-2 rounded-full mr-2 ${getStatusDot(visitor.status)}`}></div>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(visitor.status)}`}>
-                              {visitor.status.replace('_', ' ')}
-                            </span>
-                          </div>
-                        )}
+                        {!showRecurring && (() => {
+                          // Determine display status based on date and available actions
+                          let displayStatus = visitor.status;
+                          // If pending and visit is in the future, show Approved label (we show Check In action)
+                          if (visitor.status === 'PENDING' && isVisitingDateFuture(visitor.visiting_date)) {
+                            displayStatus = 'APPROVED';
+                          }
+                          // If pending and visit is in the past (reschedule case), show PAST
+                          if (visitor.status === 'PENDING' && isVisitingDatePast(visitor.visiting_date)) {
+                            displayStatus = 'PAST';
+                          }
+
+                          // Render PAST specially (red styles)
+                          if (displayStatus === 'PAST') {
+                            return (
+                              <div className="flex items-center">
+                                <div className={`w-2 h-2 rounded-full mr-2 bg-red-500`}></div>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-800 bg-red-100`}>
+                                  PAST
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // For other statuses (including overridden 'APPROVED'), show dot + label
+                          return (
+                            <div className="flex items-center">
+                              <div className={`w-2 h-2 rounded-full mr-2 ${getStatusDot(displayStatus)}`}></div>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(displayStatus)}`}>
+                                {displayStatus.replace('_', ' ')}
+                              </span>
+                            </div>
+                          );
+                        })()}
                         {showRecurring && (
                           <div className="text-sm text-gray-500">
                             <div>Active until:</div>

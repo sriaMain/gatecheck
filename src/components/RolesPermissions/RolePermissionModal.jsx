@@ -22,43 +22,67 @@ const RolePermissionModal = ({
     console.log('Is edit mode:', isEdit);
     
     if (isOpen && rolePermission) {
-      // For edit mode, convert permission names to IDs if needed
-      if (isEdit && rolePermission.permission) {
-        console.log('Processing edit mode permissions:', rolePermission.permission);
-        
-        // Check if permissions are already IDs (numbers) or names (strings)
-        let permissionIds = [];
-        
+      let permissionIds = [];
+      
+      if (rolePermission.permission) {
         if (Array.isArray(rolePermission.permission)) {
           rolePermission.permission.forEach(perm => {
             if (typeof perm === 'number') {
-              // Already an ID
+              // Handle numeric IDs
               permissionIds.push(perm);
             } else if (typeof perm === 'string') {
-              // It's a name, convert to ID
-              const permObj = permissions.find(p => p.name === perm);
-              if (permObj) {
-                permissionIds.push(permObj.permission_id);
+              // Handle string permission names or IDs
+              const numericId = parseInt(perm);
+              if (!isNaN(numericId)) {
+                permissionIds.push(numericId);
+              } else {
+                const permObj = permissions.find(p => p.name === perm);
+                if (permObj) {
+                  permissionIds.push(permObj.permission_id);
+                }
               }
-            } else if (typeof perm === 'object' && perm.permission_id) {
-              // It's an object with permission_id
-              permissionIds.push(perm.permission_id);
+            } else if (typeof perm === 'object') {
+              // Handle permission objects
+              const id = perm.permission_id || perm.id;
+              if (id) {
+                permissionIds.push(id);
+              }
+              // Also check for name field if no ID is found
+              else if (perm.name) {
+                const found = permissions.find(p => p.name === perm.name);
+                if (found) {
+                  permissionIds.push(found.permission_id);
+                }
+              }
+            }
+          });
+        } else if (typeof rolePermission.permission === 'object' && !Array.isArray(rolePermission.permission)) {
+          // Handle case where permission might be an object of key-value pairs
+          Object.values(rolePermission.permission).forEach(perm => {
+            if (typeof perm === 'number') {
+              permissionIds.push(perm);
+            } else if (typeof perm === 'object' && (perm.permission_id || perm.id)) {
+              permissionIds.push(perm.permission_id || perm.id);
             }
           });
         }
-        
-        console.log('Converted permission IDs:', permissionIds);
-        setSelectedPermissions(permissionIds);
-      } else {
-        // For add mode or when permission is already an array of IDs
-        const perms = Array.isArray(rolePermission.permission) ? rolePermission.permission : [];
-        console.log('Setting permissions for add mode:', perms);
-        setSelectedPermissions(perms);
       }
-    } else if (isOpen && !rolePermission) {
+      
+      // Remove duplicates and filter out invalid values
+      permissionIds = [...new Set(permissionIds)].filter(id => id);
+      
+      console.log('Final processed permission IDs:', permissionIds);
+      setSelectedPermissions(permissionIds);
+      
+      // Update select all state
+      if (permissions.length > 0) {
+        setSelectAll(permissionIds.length === permissions.length);
+      }
+    } else {
       // Reset when modal opens without data
       console.log('Resetting permissions - no rolePermission data');
       setSelectedPermissions([]);
+      setSelectAll(false);
     }
   }, [isOpen, rolePermission, permissions, isEdit]);
 
@@ -73,8 +97,8 @@ const RolePermissionModal = ({
   const handleRoleChange = (roleId) => {
     console.log('Role changed to:', roleId);
     onChange({
-      ...rolePermission,
-      role: roleId
+      ...(rolePermission || {}),
+      role: typeof roleId === 'string' && roleId.trim() !== '' && !isNaN(Number(roleId)) ? Number(roleId) : roleId
     });
   };
 
@@ -100,40 +124,78 @@ const RolePermissionModal = ({
     setSelectAll(!selectAll);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     console.log('Form submitted with data:');
     console.log('- Role:', rolePermission?.role);
     console.log('- Selected Permissions:', selectedPermissions);
-    
+
     // Validate before submission
-    if (!rolePermission?.role) {
+    if (!isEdit && !rolePermission?.role) {
       alert('Please select a role');
       return;
     }
-    
+
     if (selectedPermissions.length === 0) {
       alert('Please select at least one permission');
       return;
     }
-    
-    // Create clean submission data
-    const submissionData = {
-      ...rolePermission,
-      role: rolePermission.role,
-      permission: selectedPermissions // Ensure this is always an array of IDs
+
+    // Ensure permissions are numeric IDs
+    const permissionIds = selectedPermissions.map(id => {
+      const num = Number(id);
+      return isNaN(num) ? id : num;
+    });
+
+    // Determine a safe role id to send to backend (must be the role's id, not the role_permission id)
+    const resolveRoleId = (rp) => {
+      if (!rp) return null;
+      const r = rp.role;
+      // If role is an object, try to extract id fields
+      if (r && typeof r === 'object') {
+        return r.role_id || r.id || null;
+      }
+      // If role is numeric or numeric-string, prefer that only if it matches a known role
+      const num = Number(r);
+      if (!isNaN(num) && roles && roles.length > 0) {
+        const found = roles.find(role => role.role_id === num || role.id === num);
+        if (found) return num;
+      }
+      // If role is a string name, try to find role by name
+      if (typeof r === 'string') {
+        const foundByName = (roles || []).find(role => role.name === r || String(role.role_id) === r || String(role.id) === r);
+        if (foundByName) return foundByName.role_id || foundByName.id;
+      }
+      // Fallback: if the modal was given a separate field holding the role id
+      if (rp && (rp.role_id || rp.roleId)) return rp.role_id || rp.roleId;
+      return null;
     };
-    
+
+    const roleIdForPayload = resolveRoleId(rolePermission) ?? rolePermission?.role ?? '';
+
+    const submissionData = {
+      ...(rolePermission || {}),
+      // Ensure we send the role's id to the backend
+      role: roleIdForPayload,
+      permission: permissionIds, // Ensure this is always an array of numeric IDs where possible
+      role_permission_id: rolePermission?.role_permission_id || rolePermission?.id
+    };
+
     console.log('Final submission data:', submissionData);
-    
-    // Update parent state with current selections before submitting
+
+    // Update parent state with current selections
     onChange(submissionData);
-    
-    // Small delay to ensure state is updated
-    setTimeout(() => {
-      onSubmit();
-    }, 50);
+
+    try {
+      // Call parent handler with prepared payload and await its completion
+      await onSubmit(submissionData);
+      // Close the modal after successful submission
+      onClose();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      // Keep the modal open if there's an error
+    }
   };
 
   return (
@@ -157,19 +219,25 @@ const RolePermissionModal = ({
                   <Shield className="inline w-4 h-4 mr-1" />
                   Role
                 </label>
-                <select
-                  value={rolePermission.role}
-                  onChange={(e) => handleRoleChange(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select a role</option>
-                  {roles.map(role => (
-                    <option key={role.role_id} value={role.role_id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
+                {isEdit ? (
+                  <div className="w-full p-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg">
+                    {roles.find(r => r.role_id === rolePermission.role)?.name || 'Unknown Role'}
+                  </div>
+                ) : (
+                  <select
+                    value={rolePermission.role}
+                    onChange={(e) => handleRoleChange(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select a role</option>
+                    {roles.map(role => (
+                      <option key={role.role_id} value={role.role_id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>

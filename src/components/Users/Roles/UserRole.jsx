@@ -184,13 +184,32 @@ const UserRoles = ({ userProfile }) => {
   };
 
   const filteredUserRoles = userRoles.filter(ur => {
-    const matchesSearch = ur.user?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ur.role?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterRole === "all" || ur.role === filterRole;
+    // Normalize user to a searchable string (handle id, object, or string)
+    const userVal = typeof ur.user === 'string'
+      ? ur.user
+      : (ur.user && typeof ur.user === 'object')
+        ? (ur.user.name || ur.user.email || String(ur.user.id || ''))
+        : String(ur.user || '');
+
+    // Normalize role to a searchable string (handle object or string)
+    const roleVal = typeof ur.role === 'string'
+      ? ur.role
+      : (ur.role && typeof ur.role === 'object')
+        ? (ur.role.name || String(ur.role.id || ''))
+        : String(ur.role || '');
+
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = userVal.toLowerCase().includes(searchLower) || roleVal.toLowerCase().includes(searchLower);
+    const matchesFilter = filterRole === "all" || roleVal === filterRole;
     return matchesSearch && matchesFilter;
   });
 
-  const uniqueRoles = [...new Set(userRoles.map(ur => ur.role))];
+  // Build uniqueRoles safely (use role name or id)
+  const uniqueRoles = [...new Set(userRoles.map(ur => {
+    if (typeof ur.role === 'string') return ur.role;
+    if (ur.role && typeof ur.role === 'object') return ur.role.name || String(ur.role.id || '');
+    return String(ur.role || '');
+  }).filter(Boolean))];
 
   if (loading) {
     return (

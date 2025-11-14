@@ -18,8 +18,8 @@ const UserRoleTable = ({ userRoles, onEdit, onShowEditModal, onDelete }) => {
             console.log('UserRoleTable row:', userRole);
             return (
               <tr key={userRole.user_role_id || userRole.id}>
-                <td className="px-6 py-4 whitespace-nowrap">{userRole.user}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{userRole.role}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{userRole.user_name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{userRole.role_name}</td>
                 <td className="px-6 py-4 text-sm whitespace-nowrap">
                   <button
                     onClick={() => {
