@@ -87,7 +87,9 @@ const RolePermissionsPage = () => {
 
     const payloadToSend = {
       role: data.role,
-      permission: permissionIds
+      permission: permissionIds,
+      // respect explicit is_active from modal/payload, default to true
+      is_active: data.is_active !== undefined ? Boolean(data.is_active) : true
     };
 
     try {
@@ -155,6 +157,11 @@ const RolePermissionsPage = () => {
       role: selected.role,
       permission: permissionIds
     };
+
+    // include is_active when provided by modal or payload
+    if (selected.is_active !== undefined) {
+      updatePayload.is_active = Boolean(selected.is_active);
+    }
 
     try {
       setSubmitting(true);

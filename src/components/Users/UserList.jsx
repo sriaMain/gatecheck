@@ -52,9 +52,14 @@ const UserList = ({ users, onViewUser, onEditUser, onDeleteUser, loading, delete
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getUserStatusColor(user.status)}`}>
-                  {user.status || 'Active'}
-                </span>
+                {(() => {
+                  const status = (user.is_active === true) ? 'Active' : (user.is_active === false ? 'Inactive' : (user.status || 'Active'));
+                  return (
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getUserStatusColor(status)}`}>
+                      {status}
+                    </span>
+                  );
+                })()}
               </td>
               <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
                 {formatDate(user.dateAdded || user.created_at)}

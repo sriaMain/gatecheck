@@ -147,16 +147,18 @@ const UserManagement = ({ onBack, onUpdateOrganization, onNavigateToOrganization
       email: user.email || '',
       block: user.block || '',
       floor: user.floor || '',
-      status: user.status || 'active'
+      // prefer explicit boolean is_active from backend; fallback to status string
+      is_active: (user.is_active === true) ? true : (user.is_active === false ? false : (user.status ? user.status.toLowerCase() === 'active' : true))
     });
     setShowEditModal(true);
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
     setEditFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: newValue
     }));
   };
 
@@ -166,7 +168,14 @@ const UserManagement = ({ onBack, onUpdateOrganization, onNavigateToOrganization
     setErrors({});
     try {
       console.log('Updating user:', selectedUser.id, editFormData);
-      const response = await api.organization.updateUser(selectedUser.id, editFormData);
+      // send is_active boolean to backend (ensure compatibility with older status field)
+      const payload = { ...editFormData };
+      // if payload contains status string, remove it in favor of is_active
+      if (payload.status !== undefined && payload.is_active === undefined) {
+        payload.is_active = payload.status === 'active';
+        delete payload.status;
+      }
+      const response = await api.organization.updateUser(selectedUser.id, payload);
       const updatedUser = response.data;
       console.log('User updated successfully:', updatedUser);
       const updatedUsers = users.map(user =>
@@ -277,8 +286,12 @@ const UserManagement = ({ onBack, onUpdateOrganization, onNavigateToOrganization
     }
   };
 
-  const getUserStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
+  const getUserStatusColor = (statusOrFlag) => {
+    // Accept either a status string ('active','inactive','pending') or a boolean flag
+    const status = (typeof statusOrFlag === 'boolean')
+      ? (statusOrFlag ? 'active' : 'inactive')
+      : (typeof statusOrFlag === 'string' ? statusOrFlag : (statusOrFlag?.status || ''));
+    switch ((status || '').toLowerCase()) {
       case 'active':
         return 'bg-green-100 text-green-800';
       case 'inactive':
@@ -291,9 +304,9 @@ const UserManagement = ({ onBack, onUpdateOrganization, onNavigateToOrganization
   };
 
   const getUserCountSummary = () => {
-    const activeUsers = users.filter(user => user.status?.toLowerCase() === 'active').length;
-    const inactiveUsers = users.filter(user => user.status?.toLowerCase() === 'inactive').length;
-    const pendingUsers = users.filter(user => user.status?.toLowerCase() === 'pending').length;
+    const activeUsers = users.filter(user => (user.is_active === true) || (user.status && String(user.status).toLowerCase() === 'active')).length;
+    const inactiveUsers = users.filter(user => (user.is_active === false) || (user.status && String(user.status).toLowerCase() === 'inactive')).length;
+    const pendingUsers = users.filter(user => user.status && String(user.status).toLowerCase() === 'pending').length;
     return {
       total: users.length,
       active: activeUsers,

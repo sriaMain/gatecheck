@@ -50,9 +50,14 @@ const UserModals = ({
               </div>
               <div>
                 <label className="block mb-1 text-sm font-medium text-gray-700">Status</label>
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getUserStatusColor(selectedUser.status)}`}>
-                  {selectedUser.status || 'Active'}
-                </span>
+                {(() => {
+                  const status = (selectedUser.is_active === true) ? 'Active' : (selectedUser.is_active === false ? 'Inactive' : (selectedUser.status || 'Active'));
+                  return (
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getUserStatusColor(status)}`}>
+                      {status}
+                    </span>
+                  );
+                })()}
               </div>
               <div>
                 <label className="block mb-1 text-sm font-medium text-gray-700">Date Added</label>
@@ -124,17 +129,16 @@ const UserModals = ({
                 />
               </div>
               <div>
-                <label className="block mb-1 text-sm font-medium text-gray-700">Status</label>
-                <select
-                  name="status"
-                  value={editFormData.status}
-                  onChange={onInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="pending">Pending</option>
-                </select>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="is_active"
+                    checked={!!editFormData.is_active}
+                    onChange={onInputChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Active</span>
+                </label>
               </div>
             </div>
             <div className="flex justify-end p-6 space-x-3 border-t border-gray-200">

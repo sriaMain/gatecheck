@@ -86,7 +86,7 @@ const RolePermissionTable = ({ rolePermissions, onEdit, onShowEditModal, onToggl
                     >
                       <Edit2 size={16} />
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => onToggleActive && onToggleActive(rolePermission)}
                       className={`p-1 transition-colors ${
                         (rolePermission.is_active || rolePermission.isActive || rolePermission.active) ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'
@@ -98,7 +98,7 @@ const RolePermissionTable = ({ rolePermissions, onEdit, onShowEditModal, onToggl
                       ) : (
                         <ToggleLeft size={16} />
                       )}
-                    </button>
+                    </button> */}
                   </div>
                 </td>
               </tr>
