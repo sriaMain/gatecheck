@@ -11,10 +11,10 @@ User = get_user_model()
 
 username = "admin"
 email = "teerdaveni@sriainfotech.com"
-password = "Admin@123"
+password = "Admin@123"   # change to a strong password
 
 if not User.objects.filter(username=username).exists():
     User.objects.create_superuser(username=username, email=email, password=password)
-    print("Superuser created successfully!")
+    print("Superuser created!")
 else:
     print("Superuser already exists.")
