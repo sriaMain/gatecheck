@@ -1,0 +1,154 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+
+        .email-container {
+            width: 100%;
+            max-width: 600px;
+            background: white;
+            margin: 0 auto;
+            border: 1px solid #eaeaea;
+        }
+
+        .header {
+            background-color: #8b5cf6;  /* Tailwind's bg-purple-500 */
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 30px 20px;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .footer {
+            padding: 20px;
+            font-size: 14px;
+            color: #555;
+            text-align: left;
+        }
+
+        .footer strong {
+            color: #111;
+        }
+
+        a {
+            color: #4f46e5;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">SmartCheck</div>
+
+        <div class="content">
+            Hello,<br><br>
+
+            Your account has been created.<br><br>
+
+            <strong>User ID:</strong> {{ user_id }}<br>
+            <strong>Password:</strong> {{ password }}<br><br>
+
+            Login here: <a href="{{ login_url }}">{{ login_url }}</a><br><br>
+
+            Thank you!
+        </div>
+
+        <div class="footer">
+            Regards,<br>
+            <strong>SmartCheck</strong>
+        </div>
+    </div>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+        }
+
+        .header {
+            background-color: #8b5cf6; /* Purple */
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 30px 25px;
+            font-size: 16px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .credentials {
+            font-weight: bold;
+            color: #4b0082;
+        }
+
+        .footer {
+            padding: 20px 25px;
+            font-size: 14px;
+            color: #555;
+            border-top: 1px solid #eee;
+        }
+
+        a {
+            color: #4f46e5;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">SmartCheck</div>
+
+        <div class="content">
+            Dear <strong>{{ username }}</strong>,<br><br>
+
+            Your account has been successfully created.<br><br>
+
+            <div class="credentials">
+                User ID: {{ user_id }}<br>
+                Password: {{ password }}
+            </div><br>
+
+            Login here: <a href="{{ login_url }}">{{ login_url }}</a><br><br>
+
+            Thank you!
+        </div>
+
+        <div class="footer">
+            Regards,<br>
+            <strong>SmartCheck</strong>
+        </div>
+    </div>
+</body>
+</html>

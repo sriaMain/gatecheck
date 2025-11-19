@@ -1,0 +1,15 @@
+Hello {{ host_name }},
+
+You have a new visitor request:
+
+- Name: {{ visitor_name }}
+- Company: {{ company }}
+- Date: {{ visiting_date }}
+- Time: {{ visiting_time }}
+
+Please respond:
+Approve: {{ approve_url }}
+Reject: {{ reject_url }}
+
+Thank you,
+Smart Check System

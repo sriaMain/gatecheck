@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
+        h2 { text-align: center; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; table-layout: fixed; }
+        th, td {
+            border: 2px solid #000;
+            padding: 6px;
+            text-align: left;
+            word-wrap: break-word;
+        }
+        th { background-color: #f5f5f5; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Visitor Report</h2>
+    {% if from_date and to_date %}
+        <p><strong>From:</strong> {{ from_date }} <strong>To:</strong> {{ to_date }}</p>
+    {% endif %}
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 130px;">Name</th>
+                <th style="width: 170px;">Email</th>
+                <th style="width: 85px;">Mobile</th>
+                <th style="width: 120px;">Whom to Meet</th>
+                <th style="width: 90px;">Visit Date</th>
+                <th style="width: 70px;">Time In</th>
+                <th style="width: 70px;">Time Out</th>
+                <th style="width: 70px;">Duration</th>
+                <th style="width: 120px;">Access Card</th>
+                <th style="width: 90px;">Category</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in visitors %}
+                <tr>
+                    <td>{{ v.name }}</td>
+                    <td>{{ v.email }}</td>
+                    <td>{{ v.mobile }}</td>
+                    <td>{{ v.whom_to_meet }}</td>
+                    <td>{{ v.visit_date }}</td>
+                    <td>{{ v.time_in }}</td>
+                    <td>{{ v.time_out }}</td>
+                    <td>{{ v.duration }}</td>
+                    <td>{{ v.access_card }}</td>
+                    <td>{{ v.category }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="10" style="text-align:center;">No visitors found</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

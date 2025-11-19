@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .btn {
+      padding: 10px 15px;
+      border-radius: 4px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: bold;
+      display: inline-block;
+      margin: 10px 10px 10px 0;
+    }
+    .approve {
+      background-color: #28a745;
+    }
+    .reject {
+      background-color: #dc3545;
+    }
+  </style>
+</head>
+<body>
+  <p>Hello {{ host_name }},</p>
+
+  <p>You have a new visitor request:</p>
+  <ul>
+    <li><strong>Name:</strong> {{ visitor_name }}</li>
+    <li><strong>Company:</strong> {{ company }}</li>
+    <li><strong>Date:</strong> {{ visiting_date }}</li>
+    <li><strong>Time:</strong> {{ visiting_time }}</li>
+  </ul>
+
+  <p>Please respond using the buttons below:</p>
+
+  <a href="{{ approve_url }}" class="btn approve">✅ Approve</a>
+  <a href="{{ reject_url }}" class="btn reject">❌ Reject</a>
+
+  <p>Thank you,<br>Smart Check System</p>
+</body>
+</html>
