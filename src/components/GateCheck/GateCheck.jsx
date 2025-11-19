@@ -463,6 +463,8 @@ const GateCheck = ({ onVisitorCountChange, userCompany, user }) => {
             case 'BLACKLISTED': return 'text-red-800 bg-red-200';
             case 'CHECKED_IN': return 'text-blue-800 bg-blue-100';
             case 'CHECKED_OUT': return 'text-purple-800 bg-purple-100';
+            case 'VISITED': return 'text-green-800 bg-green-100';
+            case 'COMPLETED': return 'text-gray-800 bg-gray-100';
             default: return 'text-gray-800 bg-gray-100';
           }
         }}
@@ -476,6 +478,8 @@ const GateCheck = ({ onVisitorCountChange, userCompany, user }) => {
             case 'BLACKLISTED': return 'bg-red-600';
             case 'CHECKED_IN': return 'bg-blue-500';
             case 'CHECKED_OUT': return 'bg-purple-500';
+            case 'VISITED': return 'bg-green-500';
+            case 'COMPLETED': return 'bg-gray-500';
             default: return 'bg-gray-500';
           }
         }}

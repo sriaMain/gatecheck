@@ -289,6 +289,17 @@ const RolePermissionModal = ({
                 </p>
               </div>
             </div>
+            <div>
+              <label className="flex items-center mt-2">
+                <input
+                  type="checkbox"
+                  checked={!!rolePermission.is_active}
+                  onChange={e => onChange({ ...rolePermission, is_active: e.target.checked })}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">Active</span>
+              </label>
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">

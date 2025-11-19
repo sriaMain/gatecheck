@@ -101,13 +101,6 @@ const RoleTable = ({ roles, onEdit, onShowEditModal, onToggleStatus, onDelete })
                     >
                       {role.is_active ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
-                    <button
-                      onClick={() => onDelete(role.role_id)}
-                      className="p-1 text-red-600 rounded hover:text-red-900"
-                      title="Delete Role"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 </td>
               </tr>

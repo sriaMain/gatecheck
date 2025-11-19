@@ -246,6 +246,44 @@ const RolePermissionsPage = () => {
     }
   };
 
+  const handleToggleRolePermissionActive = async (rolePermission) => {
+    if (!rolePermission) return;
+    const actualId = rolePermission?.role_permission_id || rolePermission?.id;
+    if (!actualId) {
+      setError('Invalid role permission id');
+      return;
+    }
+
+    // Determine current active state from several possible fields
+    const currentActive = Boolean(rolePermission.is_active || rolePermission.isActive || rolePermission.active);
+    const newActive = !currentActive;
+
+    try {
+      setSubmitting(true);
+      // Send partial update to toggle active state
+      const payload = { is_active: newActive };
+      const response = await api.rolePermissions.update(actualId, payload);
+
+      // Update local state using server response if available, else patch locally
+      setRolePermissions(prev => prev.map(rp => {
+        const id = rp.role_permission_id || rp.id;
+        if (id === actualId) {
+          return response?.data ? response.data : { ...rp, is_active: newActive };
+        }
+        return rp;
+      }));
+
+      setError(null);
+    } catch (err) {
+      console.error('Error toggling active state:', err);
+      setError(err.response?.data?.message || 'Failed to toggle active state');
+      // refresh to recover
+      fetchRolePermissions();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Enhanced edit handler to ensure proper data flow
   const handleEditClick = (rolePermission) => {
     console.log('Edit clicked for role permission:', rolePermission);
@@ -398,7 +436,7 @@ const RolePermissionsPage = () => {
           rolePermissions={filteredRolePermissions}
           onEdit={handleEditClick}
           onShowEditModal={setShowEditModal}
-          onDelete={handleDeleteRolePermission}
+          onToggleActive={handleToggleRolePermissionActive}
         />
 
         <RolePermissionModal

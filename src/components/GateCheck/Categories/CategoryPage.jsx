@@ -88,19 +88,7 @@ const CategoryPage = (props) => {
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
-    if (!window.confirm("Are you sure you want to delete this category?")) {
-      return;
-    }
-    try {
-      await api.categories.delete(categoryId);
-      setCategories(categories.filter(category => category.id !== categoryId));
-      setError(null);
-    } catch (err) {
-      console.error('Error deleting category:', err);
-      setError(err.response?.data?.message || 'Failed to delete category');
-    }
-  };
+  // Delete logic removed as per requirements
 
   const toggleCategoryStatus = async (categoryId) => {
     const category = categories.find(c => c.id === categoryId);
@@ -202,7 +190,6 @@ const CategoryPage = (props) => {
           onEdit={setSelectedCategory}
           onShowEditModal={setShowEditModal}
           onToggleStatus={toggleCategoryStatus}
-          onDelete={handleDeleteCategory}
         />
 
         <CategoryModal

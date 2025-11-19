@@ -1,7 +1,7 @@
 import React from "react";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Eye, EyeOff } from "lucide-react";
 
-const UserRoleTable = ({ userRoles, onEdit, onShowEditModal, onDelete }) => {
+const UserRoleTable = ({ userRoles, onEdit, onShowEditModal, onToggleActive }) => {
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       <table className="min-w-full divide-y divide-gray-200">
@@ -31,10 +31,19 @@ const UserRoleTable = ({ userRoles, onEdit, onShowEditModal, onDelete }) => {
                     <Edit size={18} />
                   </button>
                   <button
-                    onClick={() => onDelete(userRole.user_role_id || userRole.id)}
-                    className="ml-4 text-red-600 hover:text-red-900"
+                    onClick={() => onToggleActive && onToggleActive(userRole)}
+                    className={`ml-4 p-1 rounded ${
+                      userRole.is_active || userRole.isActive || userRole.active
+                        ? 'text-green-600 hover:text-green-900'
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                    title={userRole.is_active || userRole.isActive || userRole.active ? 'Deactivate' : 'Activate'}
                   >
-                    <Trash2 size={18} />
+                    {userRole.is_active || userRole.isActive || userRole.active ? (
+                      <EyeOff size={18} />
+                    ) : (
+                      <Eye size={18} />
+                    )}
                   </button>
                 </td>
               </tr>

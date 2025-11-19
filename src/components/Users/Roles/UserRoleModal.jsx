@@ -50,6 +50,17 @@ const UserRoleModal = ({ isOpen, onClose, title, userRole, onChange, onSubmit, s
               ))}
             </select>
           </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={!!userRole.is_active}
+                onChange={e => onChange({ ...userRole, is_active: e.target.checked })}
+                className="mr-2"
+              />
+              <span className="text-sm font-medium text-gray-700">Active</span>
+            </label>
+          </div>
           <div className="flex justify-end">
             <button
               type="button"

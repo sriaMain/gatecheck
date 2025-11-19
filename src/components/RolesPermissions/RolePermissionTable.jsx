@@ -1,7 +1,7 @@
 import React from "react";
-import { Edit2, Trash2, Shield, Key } from "lucide-react";
+import { Edit2, Shield, Key, ToggleLeft, ToggleRight } from "lucide-react";
 
-const RolePermissionTable = ({ rolePermissions, onEdit, onShowEditModal, onDelete }) => {
+const RolePermissionTable = ({ rolePermissions, onEdit, onShowEditModal, onToggleActive }) => {
 
   console.log('RolePermissionTable props:', { rolePermissions });
   const handleEdit = (rolePermission) => {
@@ -87,11 +87,17 @@ const RolePermissionTable = ({ rolePermissions, onEdit, onShowEditModal, onDelet
                       <Edit2 size={16} />
                     </button>
                     <button
-                      onClick={() => onDelete(rolePermission.role_permission_id)}
-                      className="p-1 text-gray-400 transition-colors hover:text-red-600"
-                      title="Delete role permission assignment"
+                      onClick={() => onToggleActive && onToggleActive(rolePermission)}
+                      className={`p-1 transition-colors ${
+                        (rolePermission.is_active || rolePermission.isActive || rolePermission.active) ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                      title={(rolePermission.is_active || rolePermission.isActive || rolePermission.active) ? 'Deactivate' : 'Activate'}
                     >
-                      <Trash2 size={16} />
+                      {(rolePermission.is_active || rolePermission.isActive || rolePermission.active) ? (
+                        <ToggleRight size={16} />
+                      ) : (
+                        <ToggleLeft size={16} />
+                      )}
                     </button>
                   </div>
                 </td>

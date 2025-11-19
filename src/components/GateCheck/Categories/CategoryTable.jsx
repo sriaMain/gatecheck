@@ -1,7 +1,7 @@
 import React from 'react';
-import { Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Edit, ToggleLeft, ToggleRight } from 'lucide-react';
 
-const CategoryTable = ({ categories, onEdit, onShowEditModal, onToggleStatus, onDelete }) => {
+const CategoryTable = ({ categories, onEdit, onShowEditModal, onToggleStatus }) => {
   const handleEdit = (category) => {
     onEdit(category);
     onShowEditModal(true);
@@ -24,16 +24,16 @@ const CategoryTable = ({ categories, onEdit, onShowEditModal, onToggleStatus, on
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                 Category Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                 Description
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                 Actions
               </th>
             </tr>
@@ -47,7 +47,7 @@ const CategoryTable = ({ categories, onEdit, onShowEditModal, onToggleStatus, on
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm text-gray-600 max-w-xs truncate" title={category.description}>
+                  <div className="max-w-xs text-sm text-gray-600 truncate" title={category.description}>
                     {category.description || 'No description'}
                   </div>
                 </td>
@@ -60,11 +60,11 @@ const CategoryTable = ({ categories, onEdit, onShowEditModal, onToggleStatus, on
                     {category.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEdit(category)}
-                      className="text-purple-600 hover:text-purple-900 transition-colors"
+                      className="text-purple-600 transition-colors hover:text-purple-900"
                       title="Edit category"
                     >
                       <Edit size={16} />
@@ -80,13 +80,7 @@ const CategoryTable = ({ categories, onEdit, onShowEditModal, onToggleStatus, on
                     >
                       {category.is_active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                     </button>
-                    <button
-                      onClick={() => onDelete(category.id)}
-                      className="text-red-600 hover:text-red-900 transition-colors"
-                      title="Delete category"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {/* Delete button removed as per requirements */}
                   </div>
                 </td>
               </tr>

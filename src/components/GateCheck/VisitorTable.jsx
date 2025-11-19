@@ -345,9 +345,48 @@ console.log(otpPayload)
     return visitDate > today;
   };
 
-  // Memoized function to get action buttons
+  // Memoized function to get action buttons (driven by backend status)
   const getActionButtons = useCallback((visitor) => {
     const buttons = [];
+
+    // If logs are present, use the first log's action as the authoritative source
+    const logs = visitor.logs || [];
+    if (logs.length > 0) {
+      const firstAction = String(logs[0].action || '').toUpperCase();
+      if (firstAction === 'EXIT') {
+        buttons.push(
+          <div key="completed" className="px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded bg-gray-50">
+            Completed
+          </div>
+        );
+        return buttons;
+      }
+      if (firstAction === 'ENTRY') {
+        buttons.push(
+          <button
+            key="checkout"
+            onClick={() => handleStatusUpdate(visitor.id, 'CHECKED_OUT', 'checkout')}
+            className="px-2 py-1 text-xs text-gray-600 border border-gray-600 rounded hover:text-gray-900 hover:bg-gray-50"
+          >
+            Check Out
+          </button>
+        );
+        return buttons;
+      }
+    }
+
+    const status = (visitor.status || '').toUpperCase();
+    const completedStatuses = ['CHECKED_OUT', 'COMPLETED', 'VISITED'];
+
+    // If backend status indicates completion, show Completed badge
+    if (completedStatuses.includes(status)) {
+      buttons.push(
+        <div key="completed" className="px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded bg-gray-50">
+          Completed
+        </div>
+      );
+      return buttons;
+    }
 
     // PENDING status: Show Approve/Reject for today, Reschedule for past (only if not CHECKED_IN), Check In for future
     if (visitor.status === 'PENDING') {
@@ -414,29 +453,17 @@ console.log(otpPayload)
       }
     }
 
-    // APPROVED status: Show Check In button if not inside, Check Out button if inside
+    // APPROVED status: Show Check In button
     if (visitor.status === 'APPROVED') {
-      if (visitor.is_inside) {
-        buttons.push(
-          <button
-            key="checkout"
-            onClick={() => handleStatusUpdate(visitor.id, 'CHECKED_OUT', 'checkout')}
-            className="px-2 py-1 text-xs text-gray-600 border border-gray-600 rounded hover:text-gray-900 hover:bg-gray-50"
-          >
-            Check Out
-          </button>
-        );
-      } else {
-        buttons.push(
-          <button
-            key="checkin"
-            onClick={() => handleStatusUpdate(visitor.id, 'CHECKED_IN', 'checkin')}
-            className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:text-blue-900 hover:bg-blue-50"
-          >
-            Check In
-          </button>
-        );
-      }
+      buttons.push(
+        <button
+          key="checkin"
+          onClick={() => handleStatusUpdate(visitor.id, 'CHECKED_IN', 'checkin')}
+          className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:text-blue-900 hover:bg-blue-50"
+        >
+          Check In
+        </button>
+      );
     }
 
     // CHECKED_IN status: Show Check Out button
@@ -556,35 +583,15 @@ console.log(otpPayload)
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {!showRecurring && (() => {
-                          // Determine display status based on date and available actions
-                          let displayStatus = visitor.status;
-                          // If pending and visit is in the future, show Approved label (we show Check In action)
-                          if (visitor.status === 'PENDING' && isVisitingDateFuture(visitor.visiting_date)) {
-                            displayStatus = 'APPROVED';
-                          }
-                          // If pending and visit is in the past (reschedule case), show PAST
-                          if (visitor.status === 'PENDING' && isVisitingDatePast(visitor.visiting_date)) {
-                            displayStatus = 'PAST';
-                          }
-
-                          // Render PAST specially (red styles)
-                          if (displayStatus === 'PAST') {
-                            return (
-                              <div className="flex items-center">
-                                <div className={`w-2 h-2 rounded-full mr-2 bg-red-500`}></div>
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-800 bg-red-100`}>
-                                  PAST
-                                </span>
-                              </div>
-                            );
-                          }
-
-                          // For other statuses (including overridden 'APPROVED'), show dot + label
+                          // If logs indicate the visitor completed the visit (first action is EXIT), show VISITED
+                          const logs = visitor.logs || [];
+                          const firstAction = logs.length > 0 ? String(logs[0].action || '').toUpperCase() : '';
+                          const displayStatus = firstAction === 'EXIT' ? 'VISITED' : (visitor.status || '');
                           return (
                             <div className="flex items-center">
                               <div className={`w-2 h-2 rounded-full mr-2 ${getStatusDot(displayStatus)}`}></div>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(displayStatus)}`}>
-                                {displayStatus.replace('_', ' ')}
+                                {String(displayStatus).replace('_', ' ')}
                               </span>
                             </div>
                           );

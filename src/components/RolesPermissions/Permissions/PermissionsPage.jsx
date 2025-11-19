@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   Plus,
   Edit,
-  Trash2,
+  // Trash2,
   Search,
   Shield,
   Eye,
@@ -103,19 +103,7 @@ const PermissionsPage = () => {
     }
   };
 
-  const handleDeletePermission = async (permissionId) => {
-    if (!window.confirm("Are you sure you want to delete this permission?")) {
-      return;
-    }
-    try {
-      await api.permissions.delete(permissionId);
-      setPermissions(permissions.filter(permission => permission.permission_id !== permissionId));
-      setError(null);
-    } catch (err) {
-      console.error('Error deleting permission:', err);
-      setError(err.response?.data?.message || 'Failed to delete permission');
-    }
-  };
+  // Delete functionality removed as per requirements
 
   const togglePermissionStatus = async (permissionId) => {
     const permission = permissions.find(p => p.permission_id === permissionId);
@@ -373,13 +361,6 @@ const PermissionsPage = () => {
                             title={permission.is_active ? 'Deactivate' : 'Activate'}
                           >
                             {permission.is_active ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                          <button
-                            onClick={() => handleDeletePermission(permission.permission_id)}
-                            className="p-1 text-red-600 rounded hover:text-red-900"
-                            title="Delete Permission"
-                          >
-                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>
