@@ -36,6 +36,31 @@ logger = logging.getLogger(__name__)
 
 
 
+# @shared_task
+# def send_visit_scheduled_email(visitor_id, entry_otp, exit_otp):
+#     try:
+#         visitor = Visitor.objects.get(id=visitor_id)
+
+#         subject = "Visit Scheduled"
+
+#         company_name = visitor.coming_from.strip().title() if visitor.coming_from else "our facility"
+
+#         message = (
+#             f"Dear {visitor.visitor_name},\n\n"
+#             f"Your visit is scheduled at {company_name} on {visitor.visiting_date.strftime('%d-%m-%Y')}.\n\n"
+#             f"Entry OTP: {entry_otp}\n"
+#             f"Exit OTP: {exit_otp}\n"
+#             f"Visitor Pass Number: {visitor.pass_id}\n"
+#         )
+
+#         send_mail(subject, message, "no-reply@example.com", [visitor.email_id])
+    
+#     except Visitor.DoesNotExist:
+#         print(f"Visitor with ID {visitor_id} does not exist.")
+#     except Exception as e:
+#         print(f"Failed to send email: {e}")
+#         raise
+        
 @shared_task
 def send_visit_scheduled_email(visitor_id, entry_otp, exit_otp):
     try:
@@ -53,15 +78,20 @@ def send_visit_scheduled_email(visitor_id, entry_otp, exit_otp):
             f"Visitor Pass Number: {visitor.pass_id}\n"
         )
 
-        send_mail(subject, message, "no-reply@example.com", [visitor.email_id])
+        # FIX HERE ↓↓↓
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,   # USE VERIFIED EMAIL
+            [visitor.email_id]
+        )
     
     except Visitor.DoesNotExist:
         print(f"Visitor with ID {visitor_id} does not exist.")
     except Exception as e:
         print(f"Failed to send email: {e}")
         raise
-        
-    
+
 
 
 
