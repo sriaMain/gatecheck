@@ -89,6 +89,16 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
     #             }
     #         }
     #     }
+
+
+    # def get_fields(self):
+    #     fields = super().get_fields()
+    #     fields['identifier'] = serializers.CharField()
+    #     fields['password'] = serializers.CharField(write_only=True)
+    #     # remove unwanted fields
+    #     fields.pop('username', None)
+    #     return fields
+
     def validate(self, attrs):
         identifier = attrs.get("identifier")
         password = attrs.get("password")
@@ -98,32 +108,35 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
 
         user = None
 
-        # Try email
+        # 1️⃣ LOGIN USING EMAIL
         if "@" in identifier:
             try:
                 user = User.objects.get(email__iexact=identifier)
             except User.DoesNotExist:
-                raise serializers.ValidationError({"error": "Email not registered."})
+                raise serializers.ValidationError({"error": "Email is not registered."})
 
-        # Try alias
+        # 2️⃣ LOGIN USING USER_ID (ONLY if ALL digits)
+        elif identifier.isdigit():
+            try:
+                user = User.objects.get(user_id=str(identifier))
+            except User.DoesNotExist:
+                raise serializers.ValidationError({"error": "User ID is not registered."})
+
+        # 3️⃣ LOGIN USING ALIAS NAME
         else:
             try:
                 user = User.objects.get(alias_name__iexact=identifier)
             except User.DoesNotExist:
-                # Try user_id only if alias failed
-                try:
-                    user = User.objects.get(user_id=identifier)
-                except User.DoesNotExist:
-                    raise serializers.ValidationError({"error": "User does not exist."})
+                raise serializers.ValidationError({"error": "Alias name is not registered."})
 
-        # Check password
+        # 4️⃣ PASSWORD CHECK
         if not user.check_password(password):
             raise serializers.ValidationError({"error": "Incorrect password."})
 
-        # Check active
         if not user.is_active:
             raise serializers.ValidationError({"error": "User account is disabled."})
 
+        # 5️⃣ GENERATE JWT TOKENS
         refresh = self.get_token(user)
 
         return {
@@ -138,7 +151,7 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
                     "username": user.username,
                     "company": user.company.company_name if user.company else None,
                     "company_id": user.company.id if user.company else None,
-                    "roles": user.user_roles.filter(is_active=True).first().role.name
+                    "roles": user.user_roles.filter(is_active=True).first().role.name 
                             if user.user_roles.filter(is_active=True).exists() else None,
                 }
             }
