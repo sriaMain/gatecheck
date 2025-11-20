@@ -38,5 +38,5 @@ def create_user_and_send_mail(username, email, company, mobile_number='', alias_
         # role=role
     )
 
-    send_credentials_email.delay(email, user_id, raw_password, username)
+    send_credentials_email(email, user_id, raw_password, username)
     return user
