@@ -98,36 +98,32 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
 
         user = None
 
-        # Try Email Login
+        # Try email
         if "@" in identifier:
             try:
                 user = User.objects.get(email__iexact=identifier)
             except User.DoesNotExist:
-                raise serializers.ValidationError({"error": "Email is not registered."})
+                raise serializers.ValidationError({"error": "Email not registered."})
 
-        # Try User ID Login
-        elif identifier.isdigit():
-            try:
-                user = User.objects.get(user_id=identifier)
-            except User.DoesNotExist:
-                raise serializers.ValidationError({"error": "User ID is not registered."})
-
-        # Try Alias Name Login
+        # Try alias
         else:
             try:
                 user = User.objects.get(alias_name__iexact=identifier)
             except User.DoesNotExist:
-                raise serializers.ValidationError({"error": "Alias name is not registered."})
+                # Try user_id only if alias failed
+                try:
+                    user = User.objects.get(user_id=identifier)
+                except User.DoesNotExist:
+                    raise serializers.ValidationError({"error": "User does not exist."})
 
-        # Password validation
+        # Check password
         if not user.check_password(password):
             raise serializers.ValidationError({"error": "Incorrect password."})
 
-        # Active check
+        # Check active
         if not user.is_active:
             raise serializers.ValidationError({"error": "User account is disabled."})
 
-        # Generate token
         refresh = self.get_token(user)
 
         return {
@@ -147,6 +143,7 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
                 }
             }
         }
+
 
 
 
