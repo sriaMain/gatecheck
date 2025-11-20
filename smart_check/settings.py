@@ -212,3 +212,25 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
+
+# import sendgrid
+# from sendgrid.helpers.mail import Mail
+FROM_EMAIL = "teerdavenigedela@gmail.com"
+from django.conf import settings
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', 'SG.xxxxxxxx.yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy')
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.sendgrid.net"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "apikey"  # this is fixed
+EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+DEFAULT_FROM_EMAIL = FROM_EMAIL
+
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.sendgrid.net"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "apikey"  # this is fixed
+EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+DEFAULT_FROM_EMAIL = FROM_EMAIL
