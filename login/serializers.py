@@ -24,47 +24,110 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
 
 
 
+    # def validate(self, attrs):
+    #     identifier = attrs.get("identifier")
+    #     password = attrs.get("password")
+
+    #     if not identifier or not password:
+    #         raise serializers.ValidationError({
+    #             "error": "Both identifier and password are required."
+    #         })
+
+    #     user = None
+    #     field_found = None
+
+    #     # Determine field type
+    #     if "@" in identifier:
+    #         field = "email"
+    #         error_msg = "Email is not registered."
+    #     elif identifier.isnumeric():
+    #         field = "user_id"
+    #         error_msg = "User ID is not registered."
+    #     else:
+    #         field = "alias_name"
+    #         error_msg = "Alias name is not registered."
+
+    #     try:
+    #         user = User.objects.get(**{field: identifier})
+    #         field_found = field
+    #     except User.DoesNotExist:
+    #         raise serializers.ValidationError({
+    #             "error": error_msg
+    #         })
+
+    #     if not user.check_password(password):
+    #         raise serializers.ValidationError({
+    #             "error": "Incorrect password."
+    #         })
+
+    #     if not user.is_active:
+    #         raise serializers.ValidationError({
+    #             "error": "User account is disabled."
+    #         })
+
+    #     refresh = self.get_token(user)
+
+    #     return {
+    #         "data": {
+    #             "refresh": str(refresh),
+    #             "access": str(refresh.access_token),
+    #             "user": {
+    #                 "id": user.id,
+    #                 "user_id": user.user_id,
+    #                 "email": user.email,
+    #                 "alias_name": user.alias_name,
+    #                 "username": user.username,  # Assuming you want to include username
+    #                 "company": user.company.company_name if user.company else None,
+    #                 "company_id": user.company.id if user.company else None,  # ✅ This is correct
+    #                 # "role": user.role.name if user.role else None,
+    #                 # "roles": [ur.role.name for ur in user.user_roles.filter(is_active=True)],
+    #                 "roles ":user.user_roles.filter(is_active=True).first().role.name \
+    #                         if user.user_roles.filter(is_active=True).exists() else None,
+
+                    
+                    
+    #             }
+    #         }
+    #     }
     def validate(self, attrs):
         identifier = attrs.get("identifier")
         password = attrs.get("password")
 
         if not identifier or not password:
-            raise serializers.ValidationError({
-                "error": "Both identifier and password are required."
-            })
+            raise serializers.ValidationError({"error": "Both identifier and password are required."})
 
         user = None
-        field_found = None
 
-        # Determine field type
+        # Try Email Login
         if "@" in identifier:
-            field = "email"
-            error_msg = "Email is not registered."
-        elif identifier.isnumeric():
-            field = "user_id"
-            error_msg = "User ID is not registered."
+            try:
+                user = User.objects.get(email__iexact=identifier)
+            except User.DoesNotExist:
+                raise serializers.ValidationError({"error": "Email is not registered."})
+
+        # Try User ID Login
+        elif identifier.isdigit():
+            try:
+                user = User.objects.get(user_id=identifier)
+            except User.DoesNotExist:
+                raise serializers.ValidationError({"error": "User ID is not registered."})
+
+        # Try Alias Name Login
         else:
-            field = "alias_name"
-            error_msg = "Alias name is not registered."
+            try:
+                user = User.objects.get(alias_name__iexact=identifier)
+            except User.DoesNotExist:
+                raise serializers.ValidationError({"error": "Alias name is not registered."})
 
-        try:
-            user = User.objects.get(**{field: identifier})
-            field_found = field
-        except User.DoesNotExist:
-            raise serializers.ValidationError({
-                "error": error_msg
-            })
-
+        # Password validation
         if not user.check_password(password):
-            raise serializers.ValidationError({
-                "error": "Incorrect password."
-            })
+            raise serializers.ValidationError({"error": "Incorrect password."})
 
+        # Active check
         if not user.is_active:
-            raise serializers.ValidationError({
-                "error": "User account is disabled."
-            })
+            raise serializers.ValidationError({"error": "User account is disabled."})
 
+        # Generate token
         refresh = self.get_token(user)
 
         return {
@@ -76,16 +139,11 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
                     "user_id": user.user_id,
                     "email": user.email,
                     "alias_name": user.alias_name,
-                    "username": user.username,  # Assuming you want to include username
+                    "username": user.username,
                     "company": user.company.company_name if user.company else None,
-                    "company_id": user.company.id if user.company else None,  # ✅ This is correct
-                    # "role": user.role.name if user.role else None,
-                    # "roles": [ur.role.name for ur in user.user_roles.filter(is_active=True)],
-                    "roles ":user.user_roles.filter(is_active=True).first().role.name \
+                    "company_id": user.company.id if user.company else None,
+                    "roles": user.user_roles.filter(is_active=True).first().role.name
                             if user.user_roles.filter(is_active=True).exists() else None,
-
-                    
-                    
                 }
             }
         }
