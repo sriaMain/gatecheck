@@ -161,10 +161,13 @@ class VisitorListAPIView(APIView):
                     logger.info(f"Visitor saved with ID: {visitor.id}")
                     QRCodeService().generate_visitor_qr(visitor)
 
-                    transaction.on_commit(lambda: send_visit_scheduled_email.apply_async(
-                        args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
-                        countdown=2
-                    ))
+                    # transaction.on_commit(lambda: send_visit_scheduled_email.apply_async(
+                    #     args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
+                    #     countdown=2
+                    # ))
+                    # Direct email sending (no Celery)
+                    send_visit_scheduled_email(str(visitor.id), entry_otp_plain, exit_otp_plain)
+
 
                     response_data = VisitorDetailSerializer(visitor, context={'request': request}).data
                     response_data['message'] = 'Visitor created successfully'

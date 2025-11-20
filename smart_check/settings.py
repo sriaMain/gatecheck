@@ -202,16 +202,16 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
-import dj_database_url
-import os
+# import dj_database_url
+# import os
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get("DATABASE_URL"),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=os.environ.get("DATABASE_URL"),
+#         conn_max_age=600,
+#         conn_health_checks=True,
+#     )
+# }
 
 # import sendgrid
 # # from sendgrid.helpers.mail import Mail
@@ -256,4 +256,52 @@ SENDGRID_SANDBOX_MODE_IN_DEBUG = False
 SENDGRID_ECHO_TO_STDOUT = False
 
 DEFAULT_FROM_EMAIL = "teerdavenigedela@gmail.com"
-    
+
+
+
+# ...existing code...
+# import dj_database_url
+
+# DATABASE_URL = os.environ.get("DATABASE_URL")
+
+# if DATABASE_URL:
+#     # Production: PostgreSQL
+#     DATABASES = {
+#         'default': dj_database_url.config(
+#             default=DATABASE_URL,
+#             conn_max_age=600,
+#             conn_health_checks=True,
+#         )
+#     }
+# else:
+#     # Development: SQLite
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.sqlite3',
+#             'NAME': BASE_DIR / 'db.sqlite3',
+#         }
+#     }
+
+
+# import dj_database_url
+# import os
+
+# DATABASE_URL = os.environ.get("DATABASE_URL")
+
+# if DATABASE_URL:
+#     # Production DB - Render PostgreSQL
+#     DATABASES = {
+#         "default": dj_database_url.config(
+#             default=DATABASE_URL,
+#             conn_max_age=600,
+#             ssl_require=True
+#         )
+    # }
+# else:
+#     # Local Development - SQLite
+#     DATABASES = {
+#         "default": {
+#             "ENGINE": "django.db.backends.sqlite3",
+#             "NAME": BASE_DIR / "db.sqlite3",
+#         }
+#     }
