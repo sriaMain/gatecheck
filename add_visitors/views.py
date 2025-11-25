@@ -246,9 +246,9 @@ class VisitorDetailAPIView(APIView):
 
 
 
-class VisitorRescheduleAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+# class VisitorRescheduleAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+#     authentication_classes = [JWTAuthentication]
     
 
     # def post(self, request, pk):
@@ -339,86 +339,167 @@ class VisitorRescheduleAPIView(APIView):
     #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
     #         )
 
-    # class VisitorRescheduleAPIView(APIView):
-    #     permission_classes = [IsAuthenticated]
-    #     authentication_classes = [JWTAuthentication]
+   
+
+    # def post(self, request, pk):
+    #         self.permission_required = "create_reschedule"
+    #         if not HasRolePermission().has_permission(request, self.permission_required):
+    #             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    #         visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
+
+    #         # Prevent rescheduling after entering
+    #         if visitor.entry_time is not None or visitor.is_inside:
+    #             return Response(
+    #                 {"error": "Visitor has already entered. Rescheduling not allowed."},
+    #                 status=status.HTTP_400_BAD_REQUEST
+    #             )
+
+    #         new_date = request.data.get("new_date")
+    #         new_time = request.data.get("new_time")
+
+    #         if not new_date or not new_time:
+    #             return Response(
+    #                 {"error": "Both 'new_date' and 'new_time' are required."},
+    #                 status=status.HTTP_400_BAD_REQUEST
+    #             )
+
+    #         try:
+    #             new_date_obj = datetime.strptime(new_date, "%Y-%m-%d").date()
+    #             new_time_obj = datetime.strptime(new_time, "%H:%M:%S").time()
+    #         except ValueError:
+    #             return Response(
+    #                 {"error": "Invalid date or time format. Use YYYY-MM-DD and HH:MM:SS."},
+    #                 status=status.HTTP_400_BAD_REQUEST
+    #             )
+
+    #         if new_date_obj < localdate():
+    #             return Response(
+    #                 {"error": "New visiting date must be today or in the future."},
+    #                 status=status.HTTP_400_BAD_REQUEST
+    #             )
+
+    #         try:
+    #             with transaction.atomic():
+
+    #                 # Update schedule
+    #                 visitor.visiting_date = new_date_obj
+    #                 visitor.visiting_time = new_time_obj
+    #                 visitor.valid_until = None
+    #                 visitor.modified_by = request.user
+
+    #                 # ALWAYS generate OTP — even for future
+    #                 entry_otp_plain = generate_otp()
+    #                 exit_otp_plain = generate_otp()
+
+    #                 visitor.entry_otp = make_password(entry_otp_plain)
+    #                 visitor.exit_otp = make_password(exit_otp_plain)
+
+    #                 visitor.save()
+
+    #                 # Always send email
+    #                 transaction.on_commit(lambda: send_visit_scheduled_email(
+    #                     args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
+    #                     countdown=1
+    #                 ))
+
+    #                 return Response({
+    #                     "message": "Visitor pass rescheduled successfully.",
+    #                     "new_date": str(visitor.visiting_date),
+    #                     "new_time": str(visitor.visiting_time),
+    #                     "pass_id": visitor.pass_id,
+    #                     "otp_sent": True
+    #                 }, status=status.HTTP_200_OK)
+
+    #         except Exception as e:
+    #             logger.error(f"Reschedule error: {str(e)}", exc_info=True)
+    #             return Response(
+    #                 {"error": f"Failed to reschedule visitor: {str(e)}"},
+    #                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    #             )
+
+class VisitorRescheduleAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     def post(self, request, pk):
-            self.permission_required = "create_reschedule"
-            if not HasRolePermission().has_permission(request, self.permission_required):
-                return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        self.permission_required = "create_reschedule"
+        if not HasRolePermission().has_permission(request, self.permission_required):
+            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-            visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
+        visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
 
-            # Prevent rescheduling after entering
-            if visitor.entry_time is not None or visitor.is_inside:
-                return Response(
-                    {"error": "Visitor has already entered. Rescheduling not allowed."},
-                    status=status.HTTP_400_BAD_REQUEST
+        # Prevent rescheduling if visitor has already entered
+        if visitor.entry_time is not None or visitor.is_inside:
+            return Response(
+                {"error": "Visitor has already entered. Rescheduling not allowed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        new_date = request.data.get("new_date")
+        new_time = request.data.get("new_time")
+
+        if not new_date or not new_time:
+            return Response(
+                {"error": "Both 'new_date' and 'new_time' are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Parse date/time
+        try:
+            new_date_obj = datetime.strptime(new_date, "%Y-%m-%d").date()
+            new_time_obj = datetime.strptime(new_time, "%H:%M:%S").time()
+        except ValueError:
+            return Response(
+                {"error": "Invalid date or time format. Use YYYY-MM-DD and HH:MM:SS."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if new_date_obj < localdate():
+            return Response(
+                {"error": "New visiting date must be today or future."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+
+                # Update schedule
+                visitor.visiting_date = new_date_obj
+                visitor.visiting_time = new_time_obj
+                visitor.valid_until = None
+                visitor.modified_by = request.user
+
+                # ALWAYS generate OTP
+                entry_otp_plain = generate_otp()
+                exit_otp_plain = generate_otp()
+
+                visitor.entry_otp = make_password(entry_otp_plain)
+                visitor.exit_otp = make_password(exit_otp_plain)
+                visitor.save()
+
+                # SEND EMAIL DIRECTLY (NO CELERY)
+                send_visit_scheduled_email(
+                    visitor.id,
+                    entry_otp_plain,
+                    exit_otp_plain
                 )
 
-            new_date = request.data.get("new_date")
-            new_time = request.data.get("new_time")
+                return Response({
+                    "message": "Visitor pass rescheduled successfully.",
+                    "new_date": str(visitor.visiting_date),
+                    "new_time": str(visitor.visiting_time),
+                    "pass_id": visitor.pass_id,
+                    "otp_sent": True
+                }, status=status.HTTP_200_OK)
 
-            if not new_date or not new_time:
-                return Response(
-                    {"error": "Both 'new_date' and 'new_time' are required."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        except Exception as e:
+            logger.error(f"Reschedule Error: {str(e)}", exc_info=True)
+            return Response(
+                {"error": f"Failed to reschedule visitor: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-            try:
-                new_date_obj = datetime.strptime(new_date, "%Y-%m-%d").date()
-                new_time_obj = datetime.strptime(new_time, "%H:%M:%S").time()
-            except ValueError:
-                return Response(
-                    {"error": "Invalid date or time format. Use YYYY-MM-DD and HH:MM:SS."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if new_date_obj < localdate():
-                return Response(
-                    {"error": "New visiting date must be today or in the future."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            try:
-                with transaction.atomic():
-
-                    # Update schedule
-                    visitor.visiting_date = new_date_obj
-                    visitor.visiting_time = new_time_obj
-                    visitor.valid_until = None
-                    visitor.modified_by = request.user
-
-                    # ALWAYS generate OTP — even for future
-                    entry_otp_plain = generate_otp()
-                    exit_otp_plain = generate_otp()
-
-                    visitor.entry_otp = make_password(entry_otp_plain)
-                    visitor.exit_otp = make_password(exit_otp_plain)
-
-                    visitor.save()
-
-                    # Always send email
-                    transaction.on_commit(lambda: send_visit_scheduled_email.apply_async(
-                        args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
-                        countdown=1
-                    ))
-
-                    return Response({
-                        "message": "Visitor pass rescheduled successfully.",
-                        "new_date": str(visitor.visiting_date),
-                        "new_time": str(visitor.visiting_time),
-                        "pass_id": visitor.pass_id,
-                        "otp_sent": True
-                    }, status=status.HTTP_200_OK)
-
-            except Exception as e:
-                logger.error(f"Reschedule error: {str(e)}", exc_info=True)
-                return Response(
-                    {"error": f"Failed to reschedule visitor: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
 
 
 
