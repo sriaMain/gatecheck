@@ -43,6 +43,7 @@ CLOUDINARY_STORAGE = {
 }
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+print("Using Cloudinary for media storage in production.")
 
 MEDIA_ROOT = None
 MEDIA_URL = None
