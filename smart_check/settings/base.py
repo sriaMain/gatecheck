@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 
+from django.conf import settings
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -72,6 +74,8 @@ INSTALLED_APPS = [
     'add_visitors',
     'roles_creation',
     'reports',
+    "cloudinary",
+    "cloudinary_storage",
     # 'add_visitors.apps.VisitorsConfig',
 ]
 
@@ -271,3 +275,20 @@ else:
 
 
 from .base import *
+# from django.conf import settings
+# from django.conf.urls.static import static
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+STATIC_URL = '/static/'
+
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    'API_KEY': os.environ.get("CLOUDINARY_API_KEY"),
+    'API_SECRET': os.environ.get("CLOUDINARY_API_SECRET"),
+    'SECURE': True,
+    'AUTHENTICATED': False,
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
