@@ -86,11 +86,16 @@ class VisitorDetailSerializer(serializers.ModelSerializer):
 
   
     def get_qr_code_url(self, obj):
-        request = self.context.get('request')
-        if request and obj.qr_code and hasattr(obj.qr_code, 'url'):
-            return request.build_absolute_uri(obj.qr_code.url)
-        elif obj.qr_code and hasattr(obj.qr_code, 'url'):
-            return obj.qr_code.url  # fallback for unit tests or non-request use
+        if obj.qr_code and hasattr(obj.qr_code, 'url'):
+            qr_url = obj.qr_code.url
+            # If it's already a full URL (Cloudinary), return as-is
+            if qr_url.startswith('http://') or qr_url.startswith('https://'):
+                return qr_url
+            # Otherwise, build absolute URI for local files
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(qr_url)
+            return qr_url
         return None
 
     def create(self, validated_data):

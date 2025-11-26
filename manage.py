@@ -8,7 +8,7 @@ from dotenv import load_dotenv  # ✅ Add
 def main():
     """Run administrative tasks."""
     load_dotenv()  # ✅ Add
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings.local')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings.production')
 
     try:
         from django.core.management import execute_from_command_line

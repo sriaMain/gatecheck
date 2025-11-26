@@ -8,6 +8,7 @@ from django.conf import settings
 import qrcode
 from io import BytesIO
 from django.core.files import File
+from cloudinary_storage.storage import MediaCloudinaryStorage
 
 
 class Category(models.Model):
@@ -175,7 +176,12 @@ class Visitor(UUIDModel, TimestampedModel):
     is_inside = models.BooleanField(default=False)
 
     # QR Code & Documents
-    qr_code = models.ImageField(upload_to='visitor_qrcodes/', null=True, blank=True)
+    qr_code = models.ImageField(
+        upload_to='visitor_qrcodes/', 
+        null=True, 
+        blank=True,
+        storage=MediaCloudinaryStorage()
+    )
     id_document = models.FileField(upload_to='visitor_documents/', null=True, blank=True)
 
     # Audit Trail
@@ -303,3 +309,12 @@ class VisitorLog(UUIDModel, TimestampedModel):
 
     def __str__(self):
         return f"{self.visitor.visitor_name} - {self.get_action_display()} {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+
+class Student(models.Model):
+    name = models.CharField(max_length=100)
+    age = models.IntegerField()
+
+    def __str__(self):
+        return self.name

@@ -169,17 +169,43 @@ class QRCodeService:
             # qr.add_data(qr_data_url)
             qr.add_data(json.dumps(qr_data))  # ✅ Proper JSON
             qr.make(fit=True)
+            
+            print("🔧 QR Code generation - Step 1: QR data encoded")
 
             img = qr.make_image(fill_color="black", back_color="white")
             buffer = BytesIO()
             img.save(buffer, format='PNG')
+            
+            print(f"🔧 QR Code generation - Step 2: Image created, buffer size: {len(buffer.getvalue())} bytes")
 
             filename = f"qr_{visitor.pass_id}.png"
+            
+            print(f"🔧 QR Code generation - Step 3: Filename: {filename}")
+            print(f"🔧 QR Code generation - Step 4: Storage backend: {visitor.qr_code.storage.__class__.__name__}")
+            
+            from django.conf import settings
+            if hasattr(settings, 'DEFAULT_FILE_STORAGE'):
+                print(f"🔧 QR Code generation - Step 5: DEFAULT_FILE_STORAGE = {settings.DEFAULT_FILE_STORAGE}")
+            
+            if 'cloudinary' in settings.DEFAULT_FILE_STORAGE.lower():
+                print("🔧 QR Code generation - Step 6: Using Cloudinary storage")
+                print(f"   - Cloud Name: {settings.CLOUDINARY_STORAGE.get('CLOUD_NAME', 'NOT SET')}")
+                print(f"   - API Key configured: {'Yes' if settings.CLOUDINARY_STORAGE.get('API_KEY') else 'No'}")
+            else:
+                print(f"🔧 QR Code generation - Step 6: Using local filesystem at {settings.MEDIA_ROOT}")
+            
             visitor.qr_code.save(filename, ContentFile(buffer.getvalue()), save=True)
+            
+            print(f"✅ QR Code generation - Step 7: Saved successfully!")
+            print(f"   - QR Code URL: {visitor.qr_code.url}")
+            print(f"   - QR Code Name: {visitor.qr_code.name}")
+            
             return visitor.qr_code
 
         except Exception as e:
-            print("❌ Error generating QR code:", e)
+            print(f"❌ Error generating QR code at step: {e}")
+            import traceback
+            print(f"❌ Full traceback:\n{traceback.format_exc()}")
             raise e
 
 

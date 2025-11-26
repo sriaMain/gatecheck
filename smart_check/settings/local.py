@@ -21,12 +21,20 @@ EMAIL_HOST_USER = 'teerdavenigedela@gmail.com'
 EMAIL_HOST_PASSWORD = 'vcig blpb lbdg sact'  # Gmail App Password
 DEFAULT_FROM_EMAIL = "teerdavenigedela@gmail.com"
 
-# ✅ Use local filesystem for media
-DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
+# ✅ Cloudinary configuration for local development
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get("CLOUDINARY_CLOUD_NAME", "dngaxesdz"),
+    'API_KEY': os.environ.get("CLOUDINARY_API_KEY"),
+    'API_SECRET': os.environ.get("CLOUDINARY_API_SECRET"),
+    'SECURE': True,
+    'AUTHENTICATED': False,
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+MEDIA_ROOT = BASE_DIR / 'media'  # Fallback/temp path
+# Don't set MEDIA_URL - let cloudinary_storage generate the correct URL
 
 print("🔧 LOCAL SETTINGS LOADED")
 print(f"📧 Email backend: {EMAIL_BACKEND}")
 print("💾 Database: SQLite")
-print("📁 Media storage: Local filesystem")
+print(f"📁 Media storage: Cloudinary ({CLOUDINARY_STORAGE.get('CLOUD_NAME', 'NOT SET')})")

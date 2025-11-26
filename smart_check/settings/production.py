@@ -43,8 +43,11 @@ CLOUDINARY_STORAGE = {
 }
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-print("Using Cloudinary for media storage in production.")
 
-# ✅ Set proper values for Cloudinary production
+# ✅ Cloudinary media configuration
 MEDIA_ROOT = BASE_DIR / 'media'  # Fallback/temp path
-MEDIA_URL = 'https://res.cloudinary.com/{}/'.format(os.environ.get("CLOUDINARY_CLOUD_NAME", ""))
+
+# Don't set MEDIA_URL - let cloudinary_storage generate the correct URL automatically
+# The package will create URLs like: https://res.cloudinary.com/{cloud_name}/image/upload/{path}
+
+print("Using Cloudinary for media storage in production.")
