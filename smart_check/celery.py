@@ -8,7 +8,7 @@ import multiprocessing
 if os.name == 'nt':  # Only apply for Windows
     multiprocessing.set_start_method('spawn', force=True)
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings.local')
 app = Celery('smart_check')
 broker='redis://localhost:6379/0',
 backend='redis://localhost:6379/0'

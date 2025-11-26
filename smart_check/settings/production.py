@@ -45,5 +45,6 @@ CLOUDINARY_STORAGE = {
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 print("Using Cloudinary for media storage in production.")
 
-MEDIA_ROOT = None
-MEDIA_URL = None
+# ✅ Set proper values for Cloudinary production
+MEDIA_ROOT = BASE_DIR / 'media'  # Fallback/temp path
+MEDIA_URL = 'https://res.cloudinary.com/{}/'.format(os.environ.get("CLOUDINARY_CLOUD_NAME", ""))

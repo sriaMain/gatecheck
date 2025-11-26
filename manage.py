@@ -2,12 +2,13 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+from dotenv import load_dotenv  # ✅ Add
 
 
 def main():
     """Run administrative tasks."""
-    # os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings')
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings.production')
+    load_dotenv()  # ✅ Add
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_check.settings.local')
 
     try:
         from django.core.management import execute_from_command_line
