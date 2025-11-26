@@ -283,12 +283,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 STATIC_URL = '/static/'
 
 
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get("CLOUDINARY_CLOUD_NAME"),
-    'API_KEY': os.environ.get("CLOUDINARY_API_KEY"),
-    'API_SECRET': os.environ.get("CLOUDINARY_API_SECRET"),
-    'SECURE': True,
-    'AUTHENTICATED': False,
-}
+# CLOUDINARY_STORAGE = {
+#     'CLOUD_NAME': os.environ.get("CLOUDINARY_CLOUD_NAME"),
+#     'API_KEY': os.environ.get("CLOUDINARY_API_KEY"),
+#     'API_SECRET': os.environ.get("CLOUDINARY_API_SECRET"),
+#     'SECURE': True,
+#     'AUTHENTICATED': False,
+# }
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
