@@ -93,14 +93,26 @@ class VisitorDetailSerializer(serializers.ModelSerializer):
             return obj.qr_code.url  # fallback for unit tests or non-request use
         return None
 
+    # def create(self, validated_data):
+    #     company_data = validated_data.pop('coming_from')
+    #     company = Company.objects.create(**company_data)
+    #     visitor = Visitor.objects.create(coming_from=company, **validated_data)
     def create(self, validated_data):
-        company_data = validated_data.pop('coming_from')
-        company = Company.objects.create(**company_data)
-        visitor = Visitor.objects.create(coming_from=company, **validated_data)
+    # coming_from is already a Company instance (foreign key)
+        coming_from = validated_data.get("coming_from")
 
-    # ✅ Generate QR Code
+        # Create visitor only once
+        visitor = Visitor.objects.create(**validated_data)
+
+        # Generate QR Code
         QRCodeService().generate_visitor_qr(visitor)
-        return Visitor.objects.create(coming_from=company, **validated_data)
+
+        return visitor
+
+
+    # # ✅ Generate QR Code
+    #     QRCodeService().generate_visitor_qr(visitor)
+    #     return Visitor.objects.create(coming_from=company, **validated_data)
 
 
 
