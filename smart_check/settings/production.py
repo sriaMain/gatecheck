@@ -28,6 +28,10 @@ if DATABASE_URL:
         )
     }
 
+INSTALLED_APPS += [
+    "cloudinary",
+    "cloudinary_storage",
+]
 
 
 CLOUDINARY_STORAGE = {
@@ -39,3 +43,6 @@ CLOUDINARY_STORAGE = {
 }
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+MEDIA_ROOT = None
+MEDIA_URL = None
