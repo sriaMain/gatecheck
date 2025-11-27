@@ -76,9 +76,9 @@ class VisitorDetailSerializer(serializers.ModelSerializer):
         model = Visitor
         fields = [
             'id', 'pass_id', 'visitor_name', 'mobile_number', 'email_id', 'gender',
-             'visiting_date', 'visiting_time', 'recurring_days', 'allowing_hours',
+            'pass_type', 'visiting_date', 'visiting_time', 'recurring_days', 'allowing_hours',
             'category', 'category_details', 'whom_to_meet', 'coming_from', 'company_details',
-             'belongings_tools', 'purpose_of_visit', 'vehicle', 'vehicle_details',
+            'belongings_tools', 'purpose_of_visit', 'vehicle', 'vehicle_details',
             'status', 'approved_by', 'approved_by_name', 'approved_at', 'entry_time', 'exit_time',
             'is_inside', 'created_at', 'updated_at', 'logs', 'qr_code_url', 'is_expired', 'can_enter', 'company',
         ]
