@@ -286,11 +286,6 @@ class RolePermissionAPIView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
    
-    
-    
-
-    
-
     def put(self, request, role_id):
         """
         Update role permissions and/or is_active status.
@@ -302,79 +297,115 @@ class RolePermissionAPIView(APIView):
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=403)
 
+        # ---- Fetch Role ----
         role_obj = Role.objects.filter(role_id=role_id).first()
         if not role_obj:
             return Response({"error": "Role not found"}, status=404)
 
         try:
             with transaction.atomic():
-                # Get or create the RolePermission link
+                # Fetch or create RolePermission link
                 role_perm_link, created = RolePermission.objects.get_or_create(role=role_obj)
-                
                 updated_fields = []
 
-                # ✅ Handle is_active update
+                # ----------------------------------------
+                # 1) Update is_active
+                # ----------------------------------------
                 if 'is_active' in request.data:
                     is_active = request.data.get('is_active')
-                    if isinstance(is_active, bool) or str(is_active).lower() in ['true', 'false', '1', '0']:
-                        role_perm_link.is_active = bool(is_active) if isinstance(is_active, bool) else str(is_active).lower() in ['true', '1']
-                        updated_fields.append('is_active')
+                    if isinstance(is_active, bool):
+                        role_perm_link.is_active = is_active
+                    else:
+                        # accept "true","false","1","0"
+                        role_perm_link.is_active = str(is_active).lower() in ['true', '1']
+                    updated_fields.append("is_active")
 
-                # ✅ Handle permission updates
+                # ----------------------------------------
+                # 2) Update permissions
+                # ----------------------------------------
                 raw = request.data.get("permission")
                 if raw is not None:
-                    # Normalize input
+                    # Normalize input into a list
                     if isinstance(raw, list):
                         perms_input = raw
                     elif isinstance(raw, str):
                         try:
                             parsed = json.loads(raw)
                             perms_input = parsed if isinstance(parsed, list) else [parsed]
-                        except:
+                        except Exception:
                             perms_input = [p.strip() for p in raw.split(",") if p.strip()]
                     else:
                         perms_input = [raw]
 
-                    from roles_creation.models import Permission
-                    resolved = []
+                    resolved = []   # Permission instances
                     invalid = []
 
                     for p in perms_input:
+                        perm_obj = None
+                        # 1) numeric id
                         if str(p).isdigit():
-                            obj = Permission.objects.filter(permission_id=int(p)).first()
-                        else:
-                            codename = str(p).split(".")[-1]
-                            obj = Permission.objects.filter(codename=codename).first()
+                            perm_obj = Permission.objects.filter(permission_id=int(p)).first()
+                        # 2) try codename if exists
+                        if not perm_obj:
+                            # try lookup by 'codename' if model has it; otherwise skip
+                            if hasattr(Permission, '_meta') and any(f.name == 'codename' for f in Permission._meta.get_fields()):
+                                perm_obj = Permission.objects.filter(codename=str(p)).first()
+                        # 3) try lookup by name (case-insensitive)
+                        if not perm_obj:
+                            perm_obj = Permission.objects.filter(name__iexact=str(p)).first()
 
-                        if obj:
-                            resolved.append(obj)
+                        if perm_obj:
+                            resolved.append(perm_obj)
                         else:
                             invalid.append(p)
 
                     if invalid:
                         return Response({"error": "Invalid permissions", "invalid": invalid}, status=400)
-                    
-                    if resolved:
-                        current_ids = set(role_perm_link.permission.values_list('permission_id', flat=True))
-                        new_ids = [p.permission_id for p in resolved]
-                        
-                        to_add = [pid for pid in new_ids if pid not in current_ids]
-                        already = [pid for pid in new_ids if pid in current_ids]
-                        
-                        if to_add:
-                            role_perm_link.permission.add(*Permission.objects.filter(permission_id__in=to_add))
-                            updated_fields.append('permissions')
 
-                # ✅ Save changes
+                    # compute add/remove sets
+                    current_ids = set(role_perm_link.permission.values_list("permission_id", flat=True))
+                    new_ids = set([int(p.permission_id) for p in resolved])
+
+                    # Add missing
+                    to_add = new_ids - current_ids
+                    if to_add:
+                        role_perm_link.permission.add(*Permission.objects.filter(permission_id__in=to_add))
+                        updated_fields.append("permissions")
+
+                    # Remove unchecked
+                    to_remove = current_ids - new_ids
+                    if to_remove:
+                        role_perm_link.permission.remove(*Permission.objects.filter(permission_id__in=to_remove))
+                        updated_fields.append("permissions")
+
+                # ----------------------------------------
+                # 3) Save & respond
+                # ----------------------------------------
                 if updated_fields:
                     role_perm_link.save()
+
+                    # return permission list using fields that actually exist on Permission
+                    # prefer permission_id and name (fall back if name absent)
+                    perm_values = []
+                    perms_qs = role_perm_link.permission.all()
+                    if perms_qs.exists():
+                        # choose fields to return based on model fields
+                        if any(f.name == 'name' for f in Permission._meta.get_fields()):
+                            perm_values = list(perms_qs.values("permission_id", "name"))
+                        elif any(f.name == 'codename' for f in Permission._meta.get_fields()):
+                            perm_values = list(perms_qs.values("permission_id", "codename"))
+                        else:
+                            # fallback: just return IDs
+                            perm_values = list(perms_qs.values("permission_id"))
+
                     return Response({
-                        "message": f"Updated: {', '.join(updated_fields)}",
+                        "message": f"Updated: {', '.join(dict.fromkeys(updated_fields))}",
                         "is_active": role_perm_link.is_active,
-                        "permission_count": role_perm_link.permission.count()
+                        "permissions_count": role_perm_link.permission.count(),
+                        "permissions": perm_values
                     }, status=200)
-                else:
-                    return Response({"message": "No changes made"}, status=200)
+
+                return Response({"message": "No changes made"}, status=200)
 
         except IntegrityError as e:
             logger.exception("DB integrity error: %s", e)
@@ -382,6 +413,12 @@ class RolePermissionAPIView(APIView):
         except Exception as e:
             logger.exception("Unexpected error: %s", e)
             return Response({"error": str(e)}, status=500)
+    
+    
+
+    
+
+    
         
 
 

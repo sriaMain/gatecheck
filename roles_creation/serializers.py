@@ -57,14 +57,7 @@ class PermissionSerializer(serializers.ModelSerializer):
         fields = ['permission_id','name','is_active', 'created_at', 'modified_at','created_by', 'modified_by']
 
         read_only_fields = ['created_by']
-    # def get_created_by(self, obj):
-    #         if obj.created_by:
-    #             return {
-    #                 "id": obj.created_by.id,
-    #                 "username": obj.created_by.username,
-    #                 "email": obj.created_by.email,
-    #             }
-    #         return "System"
+ 
 
 
 class RolePermissionSerializer(serializers.ModelSerializer):
@@ -119,35 +112,13 @@ class RolePermissionSerializer(serializers.ModelSerializer):
 
 
 
-# class UserRoleSerializer(serializers.ModelSerializer):
-#     created_by = serializers.SlugRelatedField(
-#         read_only=True, slug_field='username'
-#     )
-#     modified_by = serializers.SlugRelatedField(
-#         read_only=True, slug_field='username'
-#     )
-#     class Meta:
-#         model = UserRole
-#         fields = '__all__'
-
-#     def to_representation(self, instance):
-#         representation = super().to_representation(instance)
-#         representation["user"] = instance.user.username
-#         representation["role"] = instance.role.name
-#         return representation
 
 
 class UserRoleSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.username', read_only=True)
     role_name = serializers.CharField(source='role.name', read_only=True)
 
-    # created_by = serializers.SlugRelatedField(
-    #     read_only=True, slug_field='username'
-    # )
-    # modified_by = serializers.SlugRelatedField(
-    #     read_only=True, slug_field='username'
-    # )
-
+ 
     created_by = serializers.SlugRelatedField(read_only=True, slug_field='username')
     modified_by = serializers.SlugRelatedField(read_only=True, slug_field='username')
 

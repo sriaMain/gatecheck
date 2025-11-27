@@ -203,15 +203,7 @@ class UserProfileAPIView(APIView):
         user = request.user
         company = getattr(user, "company", None)
 
-        # # ✅ Fetch roles correctly
-        # if hasattr(user, "user_roles"):
-        #     roles = user.user_roles.filter(is_active=True).select_related("role")
-        #     role_names = [ur.role.name for ur in roles if ur.role]
-        # elif hasattr(user, "role"):  
-        #     # fallback if user has direct role FK
-        #     role_names = [user.role.name]
-        # else:
-        #     role_names = []
+     
 
         if hasattr(user, "user_roles"):
             roles = user.user_roles.filter(is_active=True).select_related("role")

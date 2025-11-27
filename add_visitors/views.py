@@ -877,16 +877,16 @@ class VisitorEntryExitView(APIView):
             if visitor.is_inside:
                 return Response({'error': 'Visitor has already checked in.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Prevent early check-in
-            if now_ist < scheduled_ist:
-                return Response({'error': 'Visitor cannot check in before the scheduled visiting time.'},
-                                status=status.HTTP_400_BAD_REQUEST)
-
-            # OTP validation
+            # OTP validation (check this FIRST before time validation)
             if not visitor.entry_otp:
                 return Response({'error': 'Entry OTP not generated or already used.'}, status=status.HTTP_400_BAD_REQUEST)
             if not check_password(otp, visitor.entry_otp):
                 return Response({'error': 'Invalid entry OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Prevent early check-in (after OTP is validated)
+            if now_ist < scheduled_ist:
+                return Response({'error': 'Visitor cannot check in before the scheduled visiting time.'},
+                                status=status.HTTP_400_BAD_REQUEST)
 
             # Record entry
             visitor.entry_time = timezone.now()
@@ -933,7 +933,7 @@ class CategoryListAPIView(BaseAPIView):
         self.permission_required = "view_category"
         if not HasRolePermission.has_permission(self, request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        categories = Category.objects.filter(is_active=True)
+        categories = Category.objects.filter()
         serializer = CategorySerializer(categories, many=True)
         return Response(serializer.data)
     
@@ -948,16 +948,17 @@ class CategoryListAPIView(BaseAPIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    def put(self,request, pk):
+    def put(self, request, pk):
+        """Update an existing category"""
         self.permission_required = "update_category"
         if not HasRolePermission.has_permission(self, request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        """Update an existing category"""
+        
         category = get_object_or_404(Category, pk=pk)
         serializer = CategorySerializer(category, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):

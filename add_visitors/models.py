@@ -13,7 +13,7 @@ from cloudinary_storage.storage import MediaCloudinaryStorage
 
 class Category(models.Model):
     """Category model for visitor types"""
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     
@@ -310,11 +310,3 @@ class VisitorLog(UUIDModel, TimestampedModel):
     def __str__(self):
         return f"{self.visitor.visitor_name} - {self.get_action_display()} {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
 
-
-
-class Student(models.Model):
-    name = models.CharField(max_length=100)
-    age = models.IntegerField()
-
-    def __str__(self):
-        return self.name

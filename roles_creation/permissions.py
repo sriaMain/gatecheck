@@ -70,21 +70,21 @@ class HasRolePermission(BasePermission):
         logger.info(f"🔍 Checking permissions for user: {request.user}")
 
         if not request.user or not request.user.is_authenticated:
-            logger.warning("⛔ User is not authenticated!")
+            logger.warning(" User is not authenticated!")
             return False
 
-        # ✅ Allow both superusers and staff (admin) to bypass
+        #Allow both superusers and staff (admin) to bypass
         if request.user.is_superuser or request.user.is_staff:
-            logger.info("👑 Admin or Superuser detected — granting all permissions.")
+            logger.info(" Admin or Superuser detected — granting all permissions.")
             return True
 
-        # ✅ get user roles correctly
+        #  get user roles correctly
         user_roles = UserRole.objects.filter(
             user=request.user, is_active=True
         ).values_list("role__name", flat=True)
         print("User roles:", list(user_roles))
 
-        # ✅ get permissions linked to those roles
+        #  get permissions linked to those roles
         assigned_permissions = RolePermission.objects.filter(
             role__name__in=user_roles, is_active=True
         ).values_list("permission__name", flat=True)

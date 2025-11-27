@@ -64,9 +64,4 @@ class CustomUserSerializer(serializers.ModelSerializer):
         return [ur.role.name for ur in obj.user_roles.filter(is_active=True)]
         # return [role.name for role in obj.roles.all()]
     
-    # def get_roles(self, obj):
-    #     user_roles = obj.user_roles.filter(is_active=True)  # from related_name in UserRole
-    #     return RoleSerializer([ur.role for ur in user_roles], many=True).data
-    # def get_roles(self, obj):
-    #     """Return only role names from UserRole table"""
-    #     return [ur.role.name for ur in obj.user_roles.filter(is_active=True)]
+   
