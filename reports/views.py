@@ -42,21 +42,23 @@ class VisitorReportExportView(APIView):
         export_format = request.query_params.get("format", "excel").lower().strip()
         from_date = request.query_params.get("from_date")
         to_date = request.query_params.get("to_date")
+        date_field = request.query_params.get('date_field', 'created_at')  # 'created_at' or 'visiting_date'
 
-        visitors = Visitor.objects.all()
+        visitors = Visitor.objects.filter(is_active=True)
 
         if from_date and to_date:
             try:
-                # from_date_obj = make_aware(datetime.strptime(from_date, "%Y-%m-%d"))
-                # to_date_obj = make_aware(datetime.strptime(to_date, "%Y-%m-%d")) + timedelta(days=1)
-                # visitors = visitors.filter(created_at__range=(from_date_obj, to_date_obj))
-                # from_date_obj = make_aware(datetime.strptime(from_date, "%Y-%m-%d"))
-                # # include end of day for to_date
-                # to_date_obj = make_aware(datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1))
-                from_date_obj = make_aware(datetime.datetime.strptime(from_date, "%Y-%m-%d"))
-                to_date_obj = make_aware(datetime.datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1))
-
-                visitors = visitors.filter(created_at__range=(from_date_obj, to_date_obj))
+                from_date_obj = parse_date(from_date)
+                to_date_obj = parse_date(to_date)
+                
+                if not from_date_obj or not to_date_obj:
+                    return HttpResponse("Invalid date format. Use YYYY-MM-DD.", status=400)
+                
+                # Filter by created_at or visiting_date
+                if date_field == 'visiting_date':
+                    visitors = visitors.filter(visiting_date__range=(from_date_obj, to_date_obj))
+                else:
+                    visitors = visitors.filter(created_at__date__range=(from_date_obj, to_date_obj))
             except ValueError:
                 return HttpResponse("Invalid date format. Use YYYY-MM-DD.", status=400)
 
@@ -69,14 +71,15 @@ class VisitorReportExportView(APIView):
             data.append({
                 "Name": v.visitor_name,
                 "Email": v.email_id,
-                "Mobile": getattr(v, "mobile", ""),
-                "Whom to Meet": getattr(v, "whom_to_meet", ""),
-                "Visit Date": v.created_at.date() if v.created_at else "",
-                "Time In": getattr(v, "time_in", ""),
-                "Time Out": getattr(v, "time_out", ""),
-                "Duration": getattr(v, "duration", ""),
-                "Access Card": getattr(v, "access_card", ""),
-                "Category": getattr(v, "category", ""),
+                "Mobile": v.mobile_number,
+                "Whom to Meet": v.whom_to_meet,
+                "Visit Date": v.visiting_date,
+                "Visit Time": v.visiting_time,
+                "Entry Time": v.entry_time.strftime("%Y-%m-%d %H:%M") if v.entry_time else "-",
+                "Exit Time": v.exit_time.strftime("%Y-%m-%d %H:%M") if v.exit_time else "-",
+                "Status": v.status,
+                "Pass Type": v.pass_type,
+                "Category": str(v.category),
             })
         if export_format == "preview":
             return JsonResponse(data, safe=False)
@@ -114,6 +117,7 @@ class VisitorPdfExportView(APIView):
         to_date_str = request.GET.get('to_date')
         export_format = request.GET.get('format', 'pdf')  # default to pdf
         preview = request.GET.get('preview', 'false').lower() == 'true'
+        date_field = request.GET.get('date_field', 'created_at')  # 'created_at' or 'visiting_date'
 
         if not from_date_str or not to_date_str:
             return HttpResponse("Please provide from_date and to_date", status=400)
@@ -124,7 +128,11 @@ class VisitorPdfExportView(APIView):
         if not from_date or not to_date:
             return HttpResponse("Invalid date format", status=400)
 
-        visitors = Visitor.objects.filter(visiting_date__range=(from_date, to_date), is_active=True)
+        # Filter by created_at (when visitor was added) or visiting_date (scheduled visit)
+        if date_field == 'visiting_date':
+            visitors = Visitor.objects.filter(visiting_date__range=(from_date, to_date), is_active=True)
+        else:
+            visitors = Visitor.objects.filter(created_at__date__range=(from_date, to_date), is_active=True)
 
         if not visitors.exists():
             return HttpResponse("No visitor data found for selected dates", status=404)
@@ -185,6 +193,11 @@ class BulkVisitorUploadAPIView(APIView):
         created_count = 0
         total_rows = len(df)
         errors = []
+        
+        # Get default category
+        default_category = Category.objects.filter(is_active=True).first()
+        if not default_category:
+            return Response({"error": "No active category found. Please create a category first."}, status=400)
 
         for idx, row in enumerate(df.to_dict(orient="records"), start=1):
             print(f"Processing row {idx}: {row}")
@@ -197,18 +210,44 @@ class BulkVisitorUploadAPIView(APIView):
                 errors.append(error_msg)
                 continue
 
+            # Get purpose and ensure it's not empty/null/blank
+            purpose = row.get("purpose")
+            if not purpose or pd.isna(purpose) or str(purpose).strip() == "":
+                purpose = "Bulk Upload - General Visit"
+            
             data = {
                 "visitor_name": row.get("name"),
                 "email_id": row.get("email"),
                 "mobile_number": str(row.get("phone")),
-                "purpose_of_visit": row.get("purpose"),
-                "visiting_date": visiting_date
+                "purpose_of_visit": str(purpose).strip(),
+                "visiting_date": visiting_date,
+                "visiting_time": time(9, 0),  # Default 9 AM
+                "gender": "P",  # Prefer not to say
+                "category": default_category.id,
             }
 
             serializer = BulkVisitorSerializer(data=data, context={'bulk_upload': True})
             if serializer.is_valid():
-                serializer.save()
-                print(f"✅ Visitor created from row {idx}: {serializer.data}")
+                visitor = serializer.save()
+                
+                # Generate OTPs and send email (same as normal visitor creation)
+                from add_visitors.models import generate_otp
+                from django.contrib.auth.hashers import make_password
+                from add_visitors.tasks import send_visit_scheduled_email
+                
+                entry_otp_plain = generate_otp()
+                exit_otp_plain = generate_otp()
+                visitor.entry_otp = make_password(entry_otp_plain)
+                visitor.exit_otp = make_password(exit_otp_plain)
+                visitor.save()
+                
+                # Send email with OTPs
+                try:
+                    send_visit_scheduled_email(str(visitor.id), entry_otp_plain, exit_otp_plain)
+                except Exception as e:
+                    print(f"⚠️ Email failed for row {idx}: {e}")
+                
+                print(f"✅ Visitor created from row {idx}: {visitor.visitor_name}")
                 created_count += 1
             else:
                 error_msg = f"Row {idx}: Validation errors – {serializer.errors}"
@@ -302,26 +341,50 @@ class MonthlyVisitorReportExcelView(APIView):
         except ValueError:
             return Response({"error": "Year and month must be integers."}, status=400)
  
-        # Compute date range for the month
-        from_date = datetime.datetime(year, month, 1)
-        to_date = datetime.datetime(year, month, monthrange(year, month)[1])
- 
-        # Optional filters
-        filters = {
-            "category": request.GET.get("category"),
-            "host_name": request.GET.get("host_name"),
-        }
- 
-        # Get and serialize visitor data
-        visitors = get_visitors_by_date_range(from_date, to_date, filters)
-        serialized_data = serialize_visitors(visitors)
+        # Query visitors by created_at month
+        visitors = Visitor.objects.filter(
+            created_at__year=year,
+            created_at__month=month,
+            is_active=True
+        )
+        
+        if not visitors.exists():
+            return Response({"error": "No visitor data found for the selected month."}, status=404)
+        
+        # Prepare data
+        data = []
+        for v in visitors:
+            data.append({
+                "Name": v.visitor_name,
+                "Email": v.email_id,
+                "Mobile": v.mobile_number,
+                "Whom to Meet": v.whom_to_meet,
+                "Visit Date": v.visiting_date,
+                "Visit Time": v.visiting_time,
+                "Entry Time": v.entry_time.strftime("%Y-%m-%d %H:%M") if v.entry_time else "-",
+                "Exit Time": v.exit_time.strftime("%Y-%m-%d %H:%M") if v.exit_time else "-",
+                "Status": v.status,
+                "Pass Type": v.pass_type,
+                "Category": str(v.category),
+            })
  
         # Return preview or export
         if export_format == "preview" or request.GET.get("preview") == "true":
-            return Response(serialized_data)
+            return Response(data)
  
+        # Excel Export
+        df = pd.DataFrame(data)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name="Visitors")
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
         filename = f"Monthly_Visitor_Report_{year}_{month:02d}.xlsx"
-        return export_to_excel(serialized_data, filename=filename)
+        response['Content-Disposition'] = f'attachment; filename={filename}'
+        return response
     
 
 class MonthlyVisitorReportPDFView(APIView):

@@ -72,22 +72,31 @@ class VisitorDetailSerializer(serializers.ModelSerializer):
     vehicle_details = VehicleSerializer(source='vehicle', read_only=True)
     logs = VisitorLogSerializer(many=True, read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.get_full_name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    created_by_email = serializers.CharField(source='created_by.email', read_only=True)
     qr_code_url = serializers.SerializerMethodField()
     can_enter = serializers.ReadOnlyField()
     is_expired = serializers.ReadOnlyField()
+    
+    def get_created_by_name(self, obj):
+        """Get creator name with fallback to username if full name is empty"""
+        if obj.created_by:
+            full_name = obj.created_by.get_full_name()
+            return full_name if full_name else obj.created_by.username
+        return None
 
     
     class Meta:
         model = Visitor
         fields = [
             'id', 'pass_id', 'visitor_name', 'mobile_number', 'email_id', 'gender',
-            'pass_type', 'visiting_date', 'visiting_time', 'recurring_days', 'allowing_hours',
+            'pass_type', 'visiting_date', 'visiting_time', 'recurring_days', 'allowing_hours', 'valid_until',
             'category', 'category_details', 'whom_to_meet', 'coming_from', 'company_details',
             'belongings_tools', 'purpose_of_visit', 'vehicle', 'vehicle_details',
             'status', 'approved_by', 'approved_by_name', 'approved_at', 'entry_time', 'exit_time',
-            'is_inside', 'created_at', 'updated_at', 'logs', 'qr_code_url', 'is_expired', 'can_enter', 'company',
+            'is_inside', 'created_at', 'created_by_name', 'created_by_email', 'updated_at', 'logs', 'qr_code_url', 'is_expired', 'can_enter', 'company',
         ]
-        read_only_fields = ['pass_id', 'approved_by', 'approved_at', 'entry_time', 'exit_time', 'is_inside', 'can_enter', 'is_expired']
+        read_only_fields = ['pass_id', 'valid_until', 'approved_by', 'approved_at', 'entry_time', 'exit_time', 'is_inside', 'can_enter', 'is_expired', 'created_by_name', 'created_by_email']
 
   
     def get_qr_code_url(self, obj):
@@ -153,6 +162,12 @@ class VisitorCreateUpdateSerializer(serializers.ModelSerializer):
         from django.utils import timezone
         if value < timezone.now().date():
             raise serializers.ValidationError("Visiting date cannot be in the past")
+        return value
+    
+    def validate_category(self, value):
+        """Ensure category is active"""
+        if not value.is_active:
+            raise serializers.ValidationError(f"Category '{value.name}' is inactive and cannot be used.")
         return value
 
 

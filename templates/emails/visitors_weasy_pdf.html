@@ -24,10 +24,10 @@
                 <th>Mobile</th>
                 <th>Whom to Meet</th>
                 <th>Visit Date</th>
-                <th>Time In</th>
-                <th>Time Out</th>
-                <th>Duration</th>
-                <th>Access Card</th>
+                <th>Entry Time</th>
+                <th>Exit Time</th>
+                <th>Status</th>
+                <th>Pass Type</th>
                 <th>Category</th>
             </tr>
         </thead>
@@ -36,13 +36,13 @@
                 <tr>
                     <td>{{ v.visitor_name }}</td>
                     <td>{{ v.email_id }}</td>
-                    <td>{{ v.mobile }}</td>
+                    <td>{{ v.mobile_number }}</td>
                     <td>{{ v.whom_to_meet }}</td>
-                    <td>{{ v.created_at|date:"Y-m-d" }}</td>
-                    <td>{{ v.time_in }}</td>
-                    <td>{{ v.time_out }}</td>
-                    <td>{{ v.duration }}</td>
-                    <td>{{ v.access_card }}</td>
+                    <td>{{ v.visiting_date }}</td>
+                    <td>{{ v.entry_time|date:"Y-m-d H:i"|default:"-" }}</td>
+                    <td>{{ v.exit_time|date:"Y-m-d H:i"|default:"-" }}</td>
+                    <td>{{ v.status }}</td>
+                    <td>{{ v.pass_type }}</td>
                     <td>{{ v.category }}</td>
                 </tr>
             {% endfor %}

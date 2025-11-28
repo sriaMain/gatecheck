@@ -1,0 +1,6 @@
+name,email,phone,scheduled_date,purpose
+John Doe,john@example.com,9876543210,2025-12-01,Business Meeting
+Jane Smith,jane@example.com,9876543211,2025-12-02,Interview
+Michael Johnson,michael@example.com,9876543212,2025-12-03,Vendor Visit
+Sarah Williams,sarah@example.com,9876543213,2025-12-04,Client Meeting
+Robert Brown,robert@example.com,9876543214,2025-12-05,Delivery

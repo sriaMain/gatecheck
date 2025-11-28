@@ -891,7 +891,9 @@ class VisitorEntryExitView(APIView):
             # Record entry
             visitor.entry_time = timezone.now()
             visitor.is_inside = True
-            visitor.entry_otp = None  # Invalidate OTP
+            # Invalidate OTP only for ONE_TIME passes
+            if visitor.pass_type == Visitor.PassType.ONE_TIME:
+                visitor.entry_otp = None
 
         elif action == 'exit':
             if not visitor.is_inside:
@@ -906,7 +908,9 @@ class VisitorEntryExitView(APIView):
             # Record exit
             visitor.exit_time = timezone.now()
             visitor.is_inside = False
-            visitor.exit_otp = None  # Invalidate OTP
+            # Invalidate OTP only for ONE_TIME passes
+            if visitor.pass_type == Visitor.PassType.ONE_TIME:
+                visitor.exit_otp = None
 
         # Save visitor
         visitor.save()

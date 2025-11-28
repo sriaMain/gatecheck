@@ -26,10 +26,11 @@ class BulkVisitorSerializer(serializers.ModelSerializer):
         model = Visitor
         fields = [
             'visitor_name', 'mobile_number', 'visiting_date', 'visiting_time',
-            'category', 'coming_from', 'email_id', 'pass_type', 'gender'  # include all fields you upload
+            'category', 'coming_from', 'email_id', 'pass_type', 'gender', 'purpose_of_visit'
         ]
         extra_kwargs = {
-            'gender': {'required': False},  # Make gender optional here
+            'gender': {'required': False},
+            'purpose_of_visit': {'required': True},
         }
 
 
