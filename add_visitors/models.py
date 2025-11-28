@@ -9,6 +9,8 @@ import qrcode
 from io import BytesIO
 from django.core.files import File
 from cloudinary_storage.storage import MediaCloudinaryStorage
+from django.db.models.functions import Lower
+
 
 
 class Category(models.Model):
@@ -18,8 +20,17 @@ class Category(models.Model):
     is_active = models.BooleanField(default=True)
     
     class Meta:
+        # db_table = 'categories'
+        # verbose_name_plural = 'Categories' 
+
         db_table = 'categories'
-        verbose_name_plural = 'Categories' 
+        verbose_name_plural = 'Categories'
+        constraints = [
+            models.UniqueConstraint(
+                Lower('name'),
+                name='unique_category_name_case_insensitive'
+            )
+        ]
     
     def __str__(self):
         return self.name   

@@ -12,6 +12,11 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'description', 'is_active']
+    def validate_name(self, value):
+        # case-insensitive duplicate check
+        if Category.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("Category name already exists.")
+        return value
 
 class VehicleSerializer(serializers.ModelSerializer):       
     class Meta:
