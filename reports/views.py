@@ -210,6 +210,13 @@ class BulkVisitorUploadAPIView(APIView):
                 errors.append(error_msg)
                 continue
 
+            # Validate that the visiting date is not in the past
+            if visiting_date < datetime.date.today():
+                error_msg = f"Row {idx}: Visiting date {visiting_date} cannot be in the past."
+                print(f"❌ {error_msg}")
+                errors.append(error_msg)
+                continue
+
             # Get purpose and ensure it's not empty/null/blank
             purpose = row.get("purpose")
             if not purpose or pd.isna(purpose) or str(purpose).strip() == "":
