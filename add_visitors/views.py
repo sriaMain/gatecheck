@@ -61,7 +61,7 @@ class VisitorListAPIView(APIView):
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-        queryset = Visitor.objects.filter(is_active=True)
+        queryset = Visitor.objects.filter(is_active=True).order_by('-created_at')
         search = request.query_params.get('search', '')
         if search:
             queryset = queryset.filter(
@@ -1154,18 +1154,22 @@ class CompanyVisitorsAPIView(APIView):
     
 
     def get(self, request, company_id):
+        # First, check for the specific permission needed to view visitors.
+        self.permission_required = "view_visitors"
+        if not HasRolePermission().has_permission(request, self.permission_required):
+            return Response({'error': 'Permission denied. You do not have the required role.'}, status=status.HTTP_403_FORBIDDEN)
+
         try:
+            # Find the company the user wants to filter by.
             company = Company.objects.get(id=company_id)
         except Company.DoesNotExist:
             return Response({"error": "Company not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # ✅ Ensure logged-in user belongs to the same company
-        if request.user.company_id != company.id and not request.user.is_superuser:
-            return Response({"error": "You do not have permission to view this company's visitors"},
-                            status=status.HTTP_403_FORBIDDEN)
-
-        visitors = Visitor.objects.filter(created_by__company=company)
-        serializer = VisitorDetailSerializer(visitors, many=True)
+        # Filter visitors that are coming from that company.
+        visitors = Visitor.objects.filter(coming_from=company)
+        
+        # Serialize the data and return it.
+        serializer = VisitorDetailSerializer(visitors, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 # visitors/views.py

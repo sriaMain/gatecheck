@@ -27,6 +27,7 @@ import datetime
 # import datetime as dt
 from .serializers import BulkVisitorSerializer
 from roles_creation.permissions import HasRolePermission
+from user_onboarding.models import Company
 
 class VisitorReportExportView(APIView):
     permission_classes = [IsAuthenticated]
@@ -222,6 +223,14 @@ class BulkVisitorUploadAPIView(APIView):
             if not purpose or pd.isna(purpose) or str(purpose).strip() == "":
                 purpose = "Bulk Upload - General Visit"
             
+            company_name = row.get("company_name")
+            company_object = None  # Initialize as None
+            if company_name and not pd.isna(company_name):
+                # Get or create the company object
+                company_object, created = Company.objects.get_or_create(
+                    company_name=str(company_name).strip()
+                )
+
             data = {
                 "visitor_name": row.get("name"),
                 "email_id": row.get("email"),
@@ -231,6 +240,7 @@ class BulkVisitorUploadAPIView(APIView):
                 "visiting_time": time(9, 0),  # Default 9 AM
                 "gender": "P",  # Prefer not to say
                 "category": default_category.id,
+                "coming_from": company_object.id if company_object else None,  # Pass the ID
             }
 
             serializer = BulkVisitorSerializer(data=data, context={'bulk_upload': True})
@@ -511,4 +521,3 @@ class MonthlyVisitorReportExcelView(APIView):
  
         filename = f"Monthly_Visitor_Report_{year}_{month:02d}.xlsx"
         return export_to_excel(serialized_data, filename=filename)
- 

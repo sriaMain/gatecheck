@@ -20,8 +20,15 @@
 
 from rest_framework import serializers
 from add_visitors.models import Visitor
+from user_onboarding.models import Company
 
 class BulkVisitorSerializer(serializers.ModelSerializer):
+    coming_from = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.all(),
+        allow_null=True,
+        required=False
+    )
+
     class Meta:
         model = Visitor
         fields = [
