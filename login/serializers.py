@@ -153,6 +153,7 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
                     "company_id": user.company.id if user.company else None,
                     "roles": user.user_roles.filter(is_active=True).first().role.name 
                             if user.user_roles.filter(is_active=True).exists() else None,
+                    "is_superuser": user.is_superuser,
                 }
             }
         }

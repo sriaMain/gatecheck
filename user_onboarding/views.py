@@ -33,7 +33,15 @@ class CompanyAPIView(APIView):
             except Company.DoesNotExist:
                 return Response({"error": "Organisation not found."}, status=status.HTTP_404_NOT_FOUND)
         else:
-            organisations = Company.objects.all()
+            # Superusers see all companies; others see only their own
+            if request.user.is_superuser:
+                organisations = Company.objects.all()
+            elif request.user.company:
+                organisations = Company.objects.filter(id=request.user.company.id)
+            else:
+                # If user has no company, return an empty list
+                organisations = Company.objects.none()
+                
             serializer = CompanySerializer(organisations, many=True)
             return Response(serializer.data)
         

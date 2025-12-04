@@ -61,7 +61,19 @@ class VisitorListAPIView(APIView):
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-        queryset = Visitor.objects.filter(is_active=True).order_by('-created_at')
+        # Superusers see all visitors; others see only their company's visitors
+        if request.user.is_superuser:
+            queryset = Visitor.objects.filter(is_active=True).order_by('-created_at')
+        else:
+            user_company = request.user.company
+            if not user_company:
+                # If user has no company, they see no visitors.
+                queryset = Visitor.objects.none()
+            else:
+                queryset = Visitor.objects.filter(
+                    coming_from=user_company, is_active=True
+                ).order_by('-created_at')
+
         search = request.query_params.get('search', '')
         if search:
             queryset = queryset.filter(

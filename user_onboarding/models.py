@@ -16,7 +16,7 @@ class Company(models.Model):
 
 class CustomUser(AbstractUser):
     user_id = models.CharField(max_length=15, unique=True)
-    username = models.CharField(max_length=150, unique=True)
+    username = models.CharField(max_length=150, unique=False)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, null=True, related_name='company_users')
     email = models.EmailField(unique=True)
     mobile_number = models.CharField(max_length=15, blank=True)
@@ -25,6 +25,9 @@ class CustomUser(AbstractUser):
     floor = models.CharField(max_length=50, blank=True)
     # role = models.ForeignKey("roles_creation.Role", on_delete=models.SET_NULL, null=True, related_name='users')
     
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
 
     def __str__(self):
         return self.email
