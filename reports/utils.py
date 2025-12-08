@@ -39,7 +39,9 @@ def export_to_excel(data, filename="report.xlsx", sheet_name="Sheet1"):
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename={filename}'
+    # response['Content-Disposition'] = f'attachment; filename={filename}'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
     return response
 
 
