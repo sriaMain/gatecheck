@@ -453,12 +453,77 @@ class MonthlyVisitorReportExcelView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
     
+    # def get(self, request):
+    #     self.permission_required = "view_excel"
+    #     if not HasRolePermission().has_permission(request, self.permission_required):
+    #         return Response({'error': 'Permission denied.'}, status=403)
+
+    #     # Query parameters
+    #     year_str = request.GET.get("year")
+    #     month_str = request.GET.get("month")
+    #     from_date_str = request.GET.get("from_date")
+    #     to_date_str = request.GET.get("to_date")
+
+    #     # Filters
+    #     filters = {
+    #         "category": request.GET.get("category"),
+    #         "host_name": request.GET.get("host_name"),
+    #     }
+
+    #     visitors = None
+
+    #     # ------------------------------------------
+    #     # MODE 1: DATE RANGE FILTER
+    #     # ------------------------------------------
+    #     if from_date_str and to_date_str:
+    #         try:
+    #             from_date = datetime.datetime.strptime(from_date_str, "%Y-%m-%d").date()
+    #             to_date = datetime.datetime.strptime(to_date_str, "%Y-%m-%d").date()
+    #         except ValueError:
+    #             return Response({"error": "from_date and to_date must be YYYY-MM-DD"}, status=400)
+
+    #         visitors = get_visitors_by_date_range(from_date, to_date, filters)
+
+    #     # ------------------------------------------
+    #     # MODE 2: MONTH FILTER (DEFAULT)
+    #     # ------------------------------------------
+    #     else:
+    #         if not year_str or not month_str or year_str == "undefined" or month_str == "undefined":
+    #             return Response({"error": "Please provide valid year and month."}, status=400)
+
+    #         try:
+    #             year = int(year_str)
+    #             month = int(month_str)
+    #         except ValueError:
+    #             return Response({"error": "Year and month must be integers."}, status=400)
+
+    #         visitors = get_visitors_by_month(year, month, filters)
+
+    #     # ------------------------------------------
+    #     # SERIALIZE DATA
+    #     # ------------------------------------------
+    #     serialized_data = serialize_visitors(visitors)
+    #     print("Total visitors:", visitors.count())
+
+    #     # PREVIEW MODE
+    #     if request.GET.get("preview") == "true":
+    #         return Response(serialized_data)
+
+    #     # EXCEL EXPORT
+    #     filename = (
+    #         f"Visitor_Report_{from_date_str}_to_{to_date_str}.xlsx"
+    #         if from_date_str and to_date_str
+    #         else f"Monthly_Visitor_Report_{year}_{month:02d}.xlsx"
+    #     )
+
+    #     return export_to_excel(serialized_data, filename)
+
     def get(self, request):
         self.permission_required = "view_excel"
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=403)
 
-        # Query parameters
+        # Query params
         year_str = request.GET.get("year")
         month_str = request.GET.get("month")
         from_date_str = request.GET.get("from_date")
@@ -470,52 +535,46 @@ class MonthlyVisitorReportExcelView(APIView):
             "host_name": request.GET.get("host_name"),
         }
 
-        visitors = None
-
-        # ------------------------------------------
-        # MODE 1: DATE RANGE FILTER
-        # ------------------------------------------
+        # -------- MODE 1: DATE RANGE ----------
         if from_date_str and to_date_str:
             try:
                 from_date = datetime.datetime.strptime(from_date_str, "%Y-%m-%d").date()
                 to_date = datetime.datetime.strptime(to_date_str, "%Y-%m-%d").date()
             except ValueError:
-                return Response({"error": "from_date and to_date must be YYYY-MM-DD"}, status=400)
+                return Response({"error": "from_date & to_date must be YYYY-MM-DD"}, status=400)
 
             visitors = get_visitors_by_date_range(from_date, to_date, filters)
 
-        # ------------------------------------------
-        # MODE 2: MONTH FILTER (DEFAULT)
-        # ------------------------------------------
         else:
-            if not year_str or not month_str or year_str == "undefined" or month_str == "undefined":
-                return Response({"error": "Please provide valid year and month."}, status=400)
+            # -------- MODE 2: MONTH ----------
+            if not year_str or not month_str:
+                return Response({"error": "Provide year & month"}, status=400)
 
             try:
                 year = int(year_str)
                 month = int(month_str)
             except ValueError:
-                return Response({"error": "Year and month must be integers."}, status=400)
+                return Response({"error": "Year & month must be integers"}, status=400)
 
             visitors = get_visitors_by_month(year, month, filters)
 
-        # ------------------------------------------
-        # SERIALIZE DATA
-        # ------------------------------------------
+        # Serialize data
         serialized_data = serialize_visitors(visitors)
         print("Total visitors:", visitors.count())
 
-        # PREVIEW MODE
+        # Preview mode
         if request.GET.get("preview") == "true":
             return Response(serialized_data)
 
-        # EXCEL EXPORT
+        # File name
         filename = (
             f"Visitor_Report_{from_date_str}_to_{to_date_str}.xlsx"
             if from_date_str and to_date_str
             else f"Monthly_Visitor_Report_{year}_{month:02d}.xlsx"
         )
 
+        # Excel export
         return export_to_excel(serialized_data, filename)
+
 
 
