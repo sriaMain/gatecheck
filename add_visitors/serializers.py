@@ -24,7 +24,7 @@ class VehicleSerializer(serializers.ModelSerializer):
         fields = ['id', 'vehicle_number', 'vehicle_type', 'model', 'color']
 
 class VisitorLogSerializer(serializers.ModelSerializer):
-    security_guard_name = serializers.CharField(source='security_guard.get_full_name', read_only=True)
+    security_guard_name = serializers.CharField(source='security_guard.username', read_only=True)
     
     class Meta:
         model = VisitorLog
@@ -35,12 +35,14 @@ class VisitorListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     company_name = serializers.CharField(source='coming_from.name', read_only=True)
     qr_code_url = serializers.SerializerMethodField()
+    created_by = serializers.CharField(source='created_by.username', read_only=True)
     class Meta:
         model = Visitor
         fields = [
             'id', 'pass_id', 'visitor_name', 'mobile_number', 'visiting_date', 
-            'visiting_time', 'status', 'category_name', 'company_name', 'is_inside', 'qr_code_url', 'email_id', 'pass_type'
+            'visiting_time', 'status', 'category_name', 'company_name', 'is_inside', 'qr_code_url', 'email_id', 'pass_type',"created_by"
         ]
+    
 
     def get_qr_code_url(self, obj):
         request = self.context.get('request')

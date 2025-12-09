@@ -222,8 +222,11 @@ class Visitor(UUIDModel, TimestampedModel):
         ]
 
     def clean(self):
-        if self.visiting_date and self.visiting_date < timezone.now().date():
-            raise ValidationError({'visiting_date': 'Visiting date cannot be in the past'})
+        import os
+        # Skip visiting_date validation if running management command
+        if not os.environ.get('SKIP_VISITOR_DATE_VALIDATION'):
+            if self.visiting_date and self.visiting_date < timezone.now().date():
+                raise ValidationError({'visiting_date': 'Visiting date cannot be in the past'})
         if self.pass_type == self.PassType.RECURRING and not self.recurring_days:
             raise ValidationError({'recurring_days': 'Recurring days required for recurring pass'})
 

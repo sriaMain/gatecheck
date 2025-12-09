@@ -117,11 +117,10 @@ class RolePermissionSerializer(serializers.ModelSerializer):
 class UserRoleSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.username', read_only=True)
     role_name = serializers.CharField(source='role.name', read_only=True)
-
- 
+    company_id = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
     created_by = serializers.SlugRelatedField(read_only=True, slug_field='username')
     modified_by = serializers.SlugRelatedField(read_only=True, slug_field='username')
-
 
     class Meta:
         model = UserRole
@@ -136,5 +135,19 @@ class UserRoleSerializer(serializers.ModelSerializer):
             'created_at',
             'modified_at',
             'assigned_at',
-            'is_active'
+            'is_active',
+            'company_id',
+            'company_name',
         ]
+
+    def get_company_id(self, obj):
+        # Try to get company_id from user relation
+        if hasattr(obj.user, 'company') and obj.user.company:
+            return obj.user.company.id
+        return None
+
+    def get_company_name(self, obj):
+        # Try to get company_name from user relation
+        if hasattr(obj.user, 'company') and obj.user.company:
+            return obj.user.company.company_name
+        return None

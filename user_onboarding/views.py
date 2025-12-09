@@ -87,13 +87,17 @@ class CreateUserAPIView(APIView):
     authentication_classes = [JWTAuthentication]  
 
 
-    def get(self, request):
-        """Fetch user details by user_id or company_id"""
+    def get(self, request, id=None):
+        """Fetch user details by user_id, company_id, or all users for superadmin."""
         self.permission_required = "view_users"
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        user_id = request.query_params.get('id')
+
+        # Accept id from URL or query param
+        user_id = id if id is not None else request.query_params.get('id')
         company_id = request.query_params.get('company_id')
+
+        # Fetch by user_id
         if user_id:
             try:
                 user = CustomUser.objects.get(id=user_id)
@@ -103,29 +107,40 @@ class CreateUserAPIView(APIView):
                 return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-        
-
-
-        # elif company_id:
-        elif company_id and company_id != "undefined":
-        # ✅ Check if the company exists
+        # Company-wise filtering (applies to all, including superuser)
+        if company_id and company_id != "undefined":
             try:
-                company = Company.objects.get(id=company_id)
+                company_id_int = int(company_id)
+            except (TypeError, ValueError):
+                return Response({"error": "Invalid company_id."}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                company = Company.objects.get(id=company_id_int)
             except Company.DoesNotExist:
                 return Response({"error": "Organisation not found."}, status=status.HTTP_404_NOT_FOUND)
+            # Debug: print all users and their company assignments
+            all_users = CustomUser.objects.all()
+            print("All users and their company assignments:")
+            for u in all_users:
+                print(f"User ID: {u.id}, Username: {u.username}, Company ID: {getattr(u, 'company_id', None)}")
+            users = CustomUser.objects.filter(company_id=company_id_int)
+            print("Filtering users for company_id:", company_id_int)
+            print("Queryset:", users.query)
+            serializer = CustomUserSerializer(users, many=True)
+            return Response(serializer.data)
 
-            # ✅ Fetch users under this company
-            users = CustomUser.objects.filter(company_id=company_id)
+        # Superadmin: return all users only if no company_id filter
+        if hasattr(request.user, 'is_superuser') and request.user.is_superuser:
+            users = CustomUser.objects.all()
+            serializer = CustomUserSerializer(users, many=True)
+            return Response(serializer.data)
 
-            if users.exists():
-                serializer = CustomUserSerializer(users, many=True)
-                return Response(serializer.data)
-            else:
-                return Response({"message": "No users found for this organisation."}, status=status.HTTP_200_OK)
+        # Default: return users for current user's company
+        if hasattr(request.user, 'company') and request.user.company:
+            users = CustomUser.objects.filter(company_id=request.user.company.id)
+            serializer = CustomUserSerializer(users, many=True)
+            return Response(serializer.data)
 
-        else:
-            return Response({"error": "Please provide 'company_id' or 'id' as query param."}, status=status.HTTP_400_BAD_REQUEST)
-
+        return Response({"error": "No users found or insufficient parameters."}, status=status.HTTP_400_BAD_REQUEST)
     
 
     def post(self, request):

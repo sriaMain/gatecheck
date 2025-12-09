@@ -486,6 +486,21 @@ class UserRoleAPIView(APIView):
 
         except Exception as e:
             return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def get_users_without_roles(self, request):
+        """Return users who do NOT have any active roles assigned."""
+        self.permission_required = "view_roles"
+        if not HasRolePermission().has_permission(request, self.permission_required):
+            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            users_with_roles = UserRole.objects.filter(is_active=True).values_list('user_id', flat=True)
+            users_without_roles = User.objects.exclude(id__in=users_with_roles)
+            # You can customize fields as needed
+            data = list(users_without_roles.values('id', 'username', 'email'))
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserRoleDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]  
     authentication_classes = [JWTAuthentication]
