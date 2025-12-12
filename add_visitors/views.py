@@ -1148,6 +1148,7 @@ class VerifyVisitorEntryOTPView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]  # Allow public access for OTP verification
     def post(self, request):
+        from django.contrib.auth.hashers import check_password
         email = request.data.get('email_id')
         otp = request.data.get('entry_otp')
 
@@ -1163,8 +1164,8 @@ class VerifyVisitorEntryOTPView(APIView):
         if visitor.is_inside:
             return Response({"error": "Visitor already checked in"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check OTP match
-        if visitor.entry_otp != otp:
+        # Check OTP match using password hash check
+        if not check_password(otp, visitor.entry_otp):
             return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Optionally check if visiting date/time is correct
@@ -1180,20 +1181,10 @@ class VerifyVisitorEntryOTPView(APIView):
         visitor.entry_time = current_time
         visitor.save()
 
-        # Return visitor details
+        # Return full visitor details using VisitorDetailSerializer
+        serializer = VisitorDetailSerializer(visitor, context={'request': request})
         return Response({
             "message": "Visitor checked in successfully",
-            "visitor": {
-                "pass_id": visitor.pass_id,
-                "visitor_name": visitor.visitor_name,
-                "mobile_number": visitor.mobile_number,
-                "email_id": visitor.email_id,
-                "gender": visitor.gender,
-                "whom_to_meet": visitor.whom_to_meet,
-                "purpose_of_visit": visitor.purpose_of_visit,
-                "visiting_date": visitor.visiting_date,
-                "visiting_time": visitor.visiting_time,
-                "is_inside": visitor.is_inside,
-            }
+            "visitor": serializer.data
         }, status=status.HTTP_200_OK)
 1
