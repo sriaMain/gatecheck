@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Visit Scheduled</title>
+</head>
+
+<body>
+    <h2>Dear {{ visitor_name }},</h2>
+    <p>Your visit is scheduled at <strong>{{ company_name }}</strong> on <strong>{{ visiting_date }}</strong>.</p>
+    <p><strong>Entry OTP:</strong> {{ entry_otp }}</p>
+    <p><strong>Exit OTP:</strong> {{ exit_otp }}</p>
+    <p><strong>Visitor Pass Number:</strong> {{ pass_id }}</p>
+    <p><strong>Your QR Code:</strong></p>
+    <img src="cid:qr_code_img" alt="Visitor QR Code" style="width:200px;height:200px;" />
+</body>
+
+</html>

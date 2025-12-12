@@ -88,52 +88,7 @@ class VisitorListAPIView(APIView):
         serializer = VisitorListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
-    # def post(self, request):
-
-    
-    #     self.permission_required = "create_visitor"
-    #     if not HasRolePermission().has_permission(request, self.permission_required):
-    #         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-    #     serializer = VisitorCreateUpdateSerializer(data=request.data)
-    #     if serializer.is_valid():
-    #         try:
-    #             with transaction.atomic():
-    #                 visitor = serializer.save(created_by=request.user)
-
-    #                 # ✅ Generate Plain OTPs
-    #                 entry_otp_plain = generate_otp()
-    #                 exit_otp_plain = generate_otp()
-
-    #                 # ✅ Hash OTPs before saving
-    #                 visitor.entry_otp = make_password(entry_otp_plain)
-    #                 visitor.exit_otp = make_password(exit_otp_plain)
-    #                 visitor.save()
-
-    #                 logger.info(f"Visitor saved with ID: {visitor.id}")
-    #                 QRCodeService().generate_visitor_qr(visitor)
-
-    #                 # ✅ Send Email with plain OTPs
-    #                 transaction.on_commit(lambda: send_visit_scheduled_email.apply_async(
-    #                     args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
-    #                     countdown=2
-    #                 ))
-
-    #                 # response_data = VisitorDetailSerializer(visitor).data
-    #                 response_data = VisitorDetailSerializer(visitor, context={'request': request}).data
-    #                 response_data['message'] = 'Visitor created successfully'
-    #                 response_data['email_status'] = "Visit scheduled email task triggered"
-    #                 return Response(response_data, status=status.HTTP_201_CREATED)
-
-    #         except Exception as e:
-    #             logger.error(f"Error creating visitor: {str(e)}")
-    #             return Response(
-    #                 {'error': 'Failed to create visitor. Please try again.'},
-    #                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    #             )
-
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    # from datetime import date
+  
 
     def post(self, request):
 

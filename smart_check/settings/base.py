@@ -42,7 +42,7 @@ from pathlib import Path
 
 CORS_ALLOWED_ORIGINS = [
     # "http://localhost:55430",  # ✅ Correct (no trailing slash)
-    "http://localhost:3000",
+     "http://localhost:3000",
     # "https://gate-check-lwnp.onrender.com" 
     "http://localhost:8000",
    

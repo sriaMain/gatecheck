@@ -449,12 +449,25 @@ class UserRoleAPIView(APIView):
             return Response({'error': 'Permission denied.'}, status=403)
 
     def get(self, request):     
-        """ Handle GET requests to fetch all user-role associations """
+        """ Handle GET requests to fetch all user-role associations, with optional company_id filtering """
         self.permission_required = "view_roles"
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
         try:
-            user_roles = UserRole.objects.all()
+            company_id = request.query_params.get('company_id')
+            # If not superuser, only allow access to their own company
+            if not request.user.is_superuser:
+                user_company_id = getattr(getattr(request.user, 'company', None), 'id', None)
+                if company_id and str(company_id) != str(user_company_id):
+                    return Response({'error': 'Permission denied: You cannot view roles for another company.'}, status=status.HTTP_403_FORBIDDEN)
+                if user_company_id:
+                    user_roles = UserRole.objects.filter(user__company_id=user_company_id)
+                else:
+                    user_roles = UserRole.objects.none()
+            elif company_id:
+                user_roles = UserRole.objects.filter(user__company_id=company_id)
+            else:
+                user_roles = UserRole.objects.all()
             if not user_roles:
                 raise NotFound("No user-role associations found.")
             serializer = UserRoleSerializer(user_roles, many=True)

@@ -40,28 +40,76 @@ logger = logging.getLogger(__name__)
 @shared_task
 def send_visit_scheduled_email(visitor_id, entry_otp, exit_otp):
     try:
+        import qrcode
+        from io import BytesIO
+        from django.core.mail import EmailMultiAlternatives
+        from django.utils.html import strip_tags
+        from django.template.loader import render_to_string
+
         visitor = Visitor.objects.get(id=visitor_id)
 
         subject = "Visit Scheduled"
 
-        company_name = visitor.coming_from.strip().title() if visitor.coming_from else "our facility"
-
-        message = (
-            f"Dear {visitor.visitor_name},\n\n"
-            f"Your visit is scheduled at {company_name} on {visitor.visiting_date.strftime('%d-%m-%Y')}.\n\n"
-            f"Entry OTP: {entry_otp}\n"
-            f"Exit OTP: {exit_otp}\n"
-            f"Visitor Pass Number: {visitor.pass_id}\n"
+        # Get company name from related object if possible
+        company_name = (
+            visitor.coming_from.company_name
+            if getattr(visitor, 'coming_from', None) and hasattr(visitor.coming_from, 'company_name')
+            else "our facility"
         )
 
-        # FIX HERE ↓↓↓
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,   # USE VERIFIED EMAIL
-            [visitor.email_id]
+        # Get creator's company name if available
+        creator_company = None
+        if hasattr(visitor, 'created_by') and visitor.created_by and hasattr(visitor.created_by, 'company') and visitor.created_by.company:
+            creator_company = visitor.created_by.company.company_name
+
+        # Collect all relevant visitor data for QR code
+        import json
+        visitor_data = {
+            'pass_id': visitor.pass_id,
+            'visitor_name': visitor.visitor_name,
+            'email': visitor.email_id,
+            # 'company_name': company_name,
+            'creator_company': creator_company,
+            'visiting_date': visitor.visiting_date.strftime('%d-%m-%Y'),
+            'entry_otp': entry_otp,
+            'exit_otp': exit_otp,
+            'coming_from': getattr(visitor, 'coming_from', ''),
+            'phone': getattr(visitor, 'phone', ''),
+            'address': getattr(visitor, 'address', ''),
+        }
+        qr_data = json.dumps(visitor_data)
+        qr = qrcode.make(qr_data)
+        qr_io = BytesIO()
+        qr.save(qr_io, format='PNG')
+        qr_io.seek(0)
+
+        # Prepare HTML email
+        context = {
+            'visitor_name': visitor.visitor_name,
+            'company_name': company_name,
+            'visiting_date': visitor.visiting_date.strftime('%d-%m-%Y'),
+            'entry_otp': entry_otp,
+            'exit_otp': exit_otp,
+            'pass_id': visitor.pass_id,
+            'qr_cid': 'qr_code_img',
+        }
+        html_message = render_to_string('emails/visit_scheduled.html', context)
+        plain_message = strip_tags(html_message)
+
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[visitor.email_id]
         )
-    
+        email.attach_alternative(html_message, "text/html")
+        from email.mime.image import MIMEImage
+        qr_io.seek(0)
+        img = MIMEImage(qr_io.read(), _subtype="png")
+        img.add_header('Content-ID', '<qr_code_img>')
+        img.add_header('Content-Disposition', 'inline', filename='qrcode.png')
+        email.attach(img)
+        email.send()
     except Visitor.DoesNotExist:
         print(f"Visitor with ID {visitor_id} does not exist.")
     except Exception as e:
