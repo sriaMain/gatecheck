@@ -558,246 +558,6 @@ class VisitorApprovalDecisionView(View):
 
 
 
-# class VisitorEntryExitAPIView(BaseAPIView):
-#     permission_classes = [IsAuthenticated]
-#     authentication_classes = [JWTAuthentication] 
-#     """API view for managing visitor entry and exit"""
-    
-
-    # def post(self, request, pk):
-    #     self.permission_required = "create_entry"
-    #     if not HasRolePermission().has_permission(request, self.permission_required):
-    #         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-
-    #     """Record visitor entry or exit"""
-    #     visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
-    #     action = request.data.get('action')  # 'entry' or 'exit'
-    #     notes = request.data.get('notes', '')
-
-    #     if action not in ['entry', 'exit']:
-    #         return Response(
-    #             {'error': 'Action must be either "entry" or "exit"'},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     if visitor.status != 'APPROVED':
-    #         return Response(
-    #             {'error': 'Only approved visitors can enter/exit'},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     # 🛑 Check if pass is expired
-    #     if date.today() > visitor.visiting_date:
-    #         return Response(
-    #             {'error': 'Visitor pass has expired.'},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     # ✅ Visiting date must be today
-    #     if visitor.visiting_date != date.today():
-    #         return Response(
-    #             {'error': 'Visitor is not scheduled for today.'},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     if action == 'entry':
-    #         if visitor.is_inside:
-    #             return Response(
-    #                 {'error': 'Visitor is already inside'},
-    #                 status=status.HTTP_400_BAD_REQUEST
-    #             )
-    #     elif action == 'exit':
-    #         if not visitor.is_inside:
-    #             return Response(
-    #                 {'error': 'Visitor is not inside'},
-    #                 status=status.HTTP_400_BAD_REQUEST
-    #             )
-
-    #     now = timezone.now()
-    #     if action == 'entry':
-    #         visitor.entry_time = now
-    #         visitor.is_inside = True
-    #     else:
-    #         visitor.exit_time = now
-    #         visitor.is_inside = False
-
-    #     visitor.save()
-
-    #     # Log the action
-    #     VisitorLog.objects.create(
-    #         visitor=visitor,
-    #         action=action.upper(),
-    #         security_guard=request.user,
-    #         notes=notes
-    #     )
-
-    #     serializer = VisitorDetailSerializer(visitor)
-    #     return Response(serializer.data)
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework import status
-# from django.shortcuts import get_object_or_404
-# from django.utils import timezone
-# from django.contrib.auth.hashers import check_password
-# from .models import Visitor, VisitorLog
-# from .serializers import VisitorDetailSerializer
-
-# class VisitorEntryExitView(APIView):
-#     """
-#     API to handle visitor check-in (entry) and check-out (exit) with OTP verification.
-#     """
-#     permission_classes = []  # Add your auth if needed
-
-#     def post(self, request, pass_id):
-#         # Fetch visitor by pass_id
-#         visitor = get_object_or_404(Visitor, pass_id=pass_id, is_active=True)
-
-#         action = request.data.get('action')   # 'entry' or 'exit'
-#         otp = request.data.get('otp')         # OTP entered by visitor
-#         notes = request.data.get('notes', '')
-
-#         # Validate action
-#         if action not in ['entry', 'exit']:
-#             return Response({'error': 'Action must be either "entry" or "exit"'}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Only approved visitors
-#         if visitor.status != Visitor.PassStatus.APPROVED:
-#             return Response({'error': 'Only approved visitors can enter/exit'}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Check visiting date
-#         today = timezone.localdate()
-#         if visitor.visiting_date != today:
-#             return Response({'error': 'Visitor is not scheduled for today.'}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # OTP Verification
-#         if action == 'entry':
-#             if not visitor.entry_otp:
-#                 return Response({'error': 'Entry OTP not generated yet.'}, status=status.HTTP_400_BAD_REQUEST)
-#             if not check_password(otp, visitor.entry_otp):
-#                 return Response({'error': 'Invalid entry OTP'}, status=status.HTTP_400_BAD_REQUEST)
-#             if visitor.is_inside:
-#                 return Response({'error': 'Visitor is already inside.'}, status=status.HTTP_400_BAD_REQUEST)
-#             visitor.entry_time = timezone.now()
-#             visitor.is_inside = True
-
-#         elif action == 'exit':
-#             if not visitor.exit_otp:
-#                 return Response({'error': 'Exit OTP not generated yet.'}, status=status.HTTP_400_BAD_REQUEST)
-#             if not check_password(otp, visitor.exit_otp):
-#                 return Response({'error': 'Invalid exit OTP'}, status=status.HTTP_400_BAD_REQUEST)
-#             if not visitor.is_inside:
-#                 return Response({'error': 'Visitor is not inside.'}, status=status.HTTP_400_BAD_REQUEST)
-#             visitor.exit_time = timezone.now()
-#             visitor.is_inside = False
-
-#         # Save visitor status
-#         visitor.save()
-
-#         # Log the action
-#         VisitorLog.objects.create(
-#             visitor=visitor,
-#             action=action.upper(),
-#             security_guard=request.user if request.user.is_authenticated else None,
-#             notes=notes
-#         )
-
-#         serializer = VisitorDetailSerializer(visitor)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework import status
-# from django.shortcuts import get_object_or_404
-# from django.utils import timezone
-# from django.contrib.auth.hashers import check_password
-# from .models import Visitor, VisitorLog
-# from .serializers import VisitorDetailSerializer
-# import pytz
-
-# class VisitorEntryExitView(APIView):
-#     """
-#     API to handle visitor check-in (entry) and check-out (exit) with OTP verification.
-#     OTP is invalidated after successful use to prevent reuse.
-#     """
-#     permission_classes = []  # Add your auth if needed
-
-#     def post(self, request, pass_id):
-#         # Get visitor
-#         visitor = get_object_or_404(Visitor, pass_id=pass_id, is_active=True)
-
-#         action = request.data.get('action')   # 'entry' or 'exit'
-#         otp = request.data.get('otp')         # OTP entered by visitor
-#         notes = request.data.get('notes', '')
-
-#         # Validate action
-#         if action not in ['entry', 'exit']:
-#             return Response({'error': 'Action must be either "entry" or "exit"'}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Only approved visitors
-#         if visitor.status != Visitor.PassStatus.APPROVED:
-#             return Response({'error': 'Only approved visitors can enter/exit'}, status=status.HTTP_400_BAD_REQUEST)
-#         ist = pytz.timezone('Asia/Kolkata')
-#         scheduled_naive = datetime.combine(visitor.visiting_date, visitor.visiting_time)
-#         scheduled_ist = ist.localize(scheduled_naive)  # Scheduled visiting time in IST
-#         now_ist = timezone.now().astimezone(ist)       # Current time in IST
-
-#         if action == 'entry':
-#             if visitor.is_inside:
-#                 return Response({'error': 'Visitor has already checked in.'}, status=status.HTTP_400_BAD_REQUEST)
-
-#             # Prevent early check-in
-#             if now_ist < scheduled_ist:
-#                 return Response({'error': 'Visitor cannot check in before the scheduled visiting time.'},
-#                                 status=status.HTTP_400_BAD_REQUEST)
-      
-#         if action == 'entry':
-#             if visitor.is_inside:
-#                 return Response({'error': 'Visitor has already checked in.'}, status=status.HTTP_400_BAD_REQUEST)
-
-#             # Prevent early check-in
-#             scheduled_datetime = datetime.combine(visitor.visiting_date, visitor.visiting_time)
-#             if timezone.now() < timezone.make_aware(scheduled_datetime):
-#                 return Response({'error': 'Visitor cannot check in before the scheduled visiting time.'},
-#                                 status=status.HTTP_400_BAD_REQUEST)
-
-#             if not visitor.entry_otp:
-#                 return Response({'error': 'Entry OTP not generated or already used.'}, status=status.HTTP_400_BAD_REQUEST)
-#             if not check_password(otp, visitor.entry_otp):
-#                 return Response({'error': 'Invalid entry OTP'}, status=status.HTTP_400_BAD_REQUEST)
-
-#             # Record entry
-#             visitor.entry_time = timezone.now()
-#             visitor.is_inside = True
-#             visitor.entry_otp = None  # OTP invalidated
-
-#         elif action == 'exit':
-#             if not visitor.is_inside:
-#                 return Response({'error': 'Visitor has not checked in yet or already checked out.'}, status=status.HTTP_400_BAD_REQUEST)
-#             if not visitor.exit_otp:
-#                 return Response({'error': 'Exit OTP not generated or already used.'}, status=status.HTTP_400_BAD_REQUEST)
-#             if not check_password(otp, visitor.exit_otp):
-#                 return Response({'error': 'Invalid exit OTP'}, status=status.HTTP_400_BAD_REQUEST)
-
-#             # Record exit
-#             visitor.exit_time = timezone.now()
-#             visitor.is_inside = False
-#             visitor.exit_otp = None  # OTP invalidated
-
-
-#         # Save visitor
-#         visitor.save()
-
-#         # Log action
-#         VisitorLog.objects.create(
-#             visitor=visitor,
-#             action=action.upper(),
-#             security_guard=request.user if request.user.is_authenticated else None,
-#             notes=notes
-#         )
-
-#         serializer = VisitorDetailSerializer(visitor)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 
@@ -1021,31 +781,201 @@ class DashboardAPIView(BaseAPIView):
         
         return Response(stats)
 
+import logging
+logger = logging.getLogger(__name__)
 
+# class QRCodeScanAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+#     authentication_classes = [JWTAuthentication]
+#     def post(self, request):
+#         self.permission_required = "create_qr"
+
+#         # 🔐 Permission check
+#         if not HasRolePermission().has_permission(request, self.permission_required):
+#             return Response(
+#                 {"error": "Permission denied"},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
+#         pass_id = request.data.get("pass_id")
+
+#         if not pass_id:
+#             return Response({"error": "pass_id is required"}, status=400)
+
+#         pass_id = pass_id.strip()
+
+#         try:
+#             visitor = Visitor.objects.get(pass_id__iexact=pass_id)
+#         except Visitor.DoesNotExist:
+#             return Response({"error": "Invalid QR or pass ID"}, status=400)
+
+#         # 🚫 Already inside
+#         if visitor.is_inside:
+#             return Response(
+#                 {
+#                     "error": "Visitor already checked in",
+#                     "status": "Inside",
+#                     "entry_time": visitor.entry_time
+#                 },
+#                 status=400
+#             )
+
+#         # 🚫 Inactive pass (optional business rule)
+#         if not visitor.is_active:
+#             return Response(
+#                 {"error": "Visitor pass is inactive"},
+#                 status=400
+#             )
+
+#         # ✅ Check-in
+#         visitor.is_inside = True
+#         visitor.entry_time = timezone.now()
+#         visitor.save()
+
+        
+#         created_by_name = None
+#         if visitor.created_by:
+#             created_by_name = (
+#                 visitor.created_by.get_full_name()
+#                 or visitor.created_by.username
+#                 or visitor.created_by.email
+#             )
+
+#         return Response(
+#         {
+#             "message": "Visitor checked in successfully",
+#             "status": "Inside",
+#             "pass_id": visitor.pass_id,
+#             "entry_time": visitor.entry_time,
+
+#             "visitor_name": visitor.visitor_name,
+#             "email_id": visitor.email_id,
+#             "visiting_date": visitor.visiting_date,
+
+#             "category": visitor.category.name if visitor.category else None,
+#             "purpose_of_visit": visitor.purpose_of_visit,
+#             "phone": visitor.mobile_number,
+#             # "coming_from": visitor.coming_from,
+
+#             "created_by": created_by_name,
+#             "created_by_id": visitor.created_by.id if visitor.created_by else None,
+#         },
+#         status=200
+#     )
 
 class QRCodeScanAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     def post(self, request):
-        """Handle QR code scan for visitor entry/exit"""
         self.permission_required = "create_qr"
+
         if not HasRolePermission().has_permission(request, self.permission_required):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        pass_id = request.data.get('pass_id')
+            return Response(
+                {"error": "Permission denied"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        pass_id = request.data.get("pass_id")
+
+        if not pass_id:
+            return Response(
+                {"error": "pass_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        pass_id = pass_id.strip()
+
         try:
-            visitor = Visitor.objects.get(pass_id=pass_id, is_active=True)
+            visitor = Visitor.objects.get(pass_id__iexact=pass_id)
         except Visitor.DoesNotExist:
-            return Response({'error': 'Invalid QR or pass ID'}, status=404)
+            return Response(
+                {"error": "Invalid QR or pass ID"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+       
 
         if not visitor.is_inside:
-            visitor.entry_time = timezone.now()
+            # Trying to ENTER
+
+            # Prevent check-in before or after scheduled date (only allow on the scheduled date)
+            today = timezone.now().date()
+            if visitor.visiting_date != today:
+                return Response(
+                    {"error": "Check-in allowed only on the scheduled visiting date."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # ❌ Block re-entry for ONE_TIME pass
+            if (
+                visitor.pass_type == Visitor.PassType.ONE_TIME
+                and visitor.exit_time is not None
+            ):
+                return Response(
+                    {
+                        "error": "One-time pass already used. Re-entry not allowed.",
+                        "status": "Outside"
+                    },
+                    status=400
+                )
+
+            # ✅ ENTRY
             visitor.is_inside = True
+            visitor.entry_time = timezone.now()
+            visitor.exit_time = None
+            visitor.save()
+
+            action = "ENTRY"
+            message = "Visitor checked in successfully"
+
         else:
-            visitor.exit_time = timezone.now()
+            # Trying to EXIT
             visitor.is_inside = False
-        visitor.save()
-        return Response({'message': 'Status updated', 'status': 'Inside' if visitor.is_inside else 'Exited'})
+            visitor.exit_time = timezone.now()
+            visitor.save()
+
+            action = "EXIT"
+            message = "Visitor checked out successfully"
+
+
+
+        # 🧾 Created by fallback
+        if visitor.created_by:
+            created_by_name = (
+                visitor.created_by.get_full_name()
+                or visitor.created_by.username
+                or visitor.created_by.email
+            )
+        else:
+            created_by_name = None
+
+        return Response(
+            {
+                "message": message,
+                "action": action,            # ENTRY or EXIT
+                "status": "Inside" if visitor.is_inside else "Visited",
+
+                "pass_id": visitor.pass_id,
+                "visitor_name": visitor.visitor_name,
+                "email_id": visitor.email_id,
+                "visiting_date": visitor.visiting_date,
+
+                "entry_time": visitor.entry_time,
+                "exit_time": visitor.exit_time,
+                "purpose_of_visit": visitor.purpose_of_visit,
+                "phone": visitor.mobile_number,
+
+                "category": visitor.category.name if visitor.category else None,
+                # "coming_from": visitor.coming_from,
+
+                "created_by": created_by_name,
+                "created_by_id": visitor.created_by.id if visitor.created_by else None,
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+
 
 
 from rest_framework.permissions import AllowAny
@@ -1187,4 +1117,261 @@ class VerifyVisitorEntryOTPView(APIView):
             "message": "Visitor checked in successfully",
             "visitor": serializer.data
         }, status=status.HTTP_200_OK)
-1
+
+
+from django.contrib.auth.hashers import check_password
+
+
+class VerifyVisitorOTPAPIView(APIView):
+    
+
+    def post(self, request):
+        self.permission_required = "create_qr"
+
+        if not HasRolePermission().has_permission(request, self.permission_required):
+                return Response(
+                    {"error": "Permission denied"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        otp = request.data.get("otp")
+        if not otp:
+            return Response(
+                {"error": "otp is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        visitor = None
+        otp_type = None
+        candidates = Visitor.objects.filter(is_active=True)
+        for v in candidates:
+            if v.entry_otp and check_password(otp, v.entry_otp):
+                visitor = v
+                otp_type = "entry"
+                break
+            if v.exit_otp and check_password(otp, v.exit_otp):
+                visitor = v
+                otp_type = "exit"
+                break
+
+        if not visitor:
+            return Response(
+                {"error": "Invalid OTP"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ENTRY OTP logic
+        if otp_type == "entry":
+            if visitor.is_inside:
+                return Response(
+                    {"error": "Visitor already checked in"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            today = timezone.now().date()
+            if visitor.visiting_date != today:
+                return Response(
+                    {"error": "Check-in allowed only on the scheduled visiting date."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if (
+                visitor.pass_type == Visitor.PassType.ONE_TIME
+                and visitor.exit_time is not None
+            ):
+                return Response(
+                    {
+                        "error": "One-time pass already used. Re-entry not allowed.",
+                        "status": "Outside"
+                    },
+                    status=400
+                )
+            visitor.is_inside = True
+            visitor.entry_time = timezone.now()
+            visitor.exit_time = None
+            visitor.save()
+            created_by_name = (
+                visitor.created_by.get_full_name()
+                if visitor.created_by and visitor.created_by.get_full_name()
+                else visitor.created_by.username
+                if visitor.created_by
+                else None
+            )
+            return Response(
+                {
+                    "message": "Visitor checked in successfully",
+                    "action": "ENTRY",
+                    "visitor": {
+                        "pass_id": visitor.pass_id,
+                        "visitor_name": visitor.visitor_name,
+                        "email_id": visitor.email_id,
+                        "mobile_number": visitor.mobile_number,
+                        "visiting_date": visitor.visiting_date,
+                        "purpose_of_visit": visitor.purpose_of_visit,
+                        "is_inside": visitor.is_inside,
+                        "entry_time": visitor.entry_time,
+                        "exit_time": visitor.exit_time,
+                        "category": visitor.category.name if visitor.category else None,
+                        "coming_from": visitor.coming_from,
+                        "created_by": created_by_name,
+                    }
+                },
+                status=status.HTTP_200_OK
+            )
+
+        # EXIT OTP logic
+        if otp_type == "exit":
+            if visitor.exit_otp_used:
+                return Response(
+                    {"error": "Exit OTP already used"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if not visitor.is_inside:
+                return Response(
+                    {"error": "Cannot checkout before check-in"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            visitor.is_inside = False
+            visitor.exit_time = timezone.now()
+            visitor.exit_otp_used = True
+            visitor.save()
+            created_by_name = (
+                visitor.created_by.get_full_name()
+                if visitor.created_by and visitor.created_by.get_full_name()
+                else visitor.created_by.username
+                if visitor.created_by
+                else None
+            )
+            return Response(
+                {
+                    "message": "Visitor checked out successfully",
+                    "action": "EXIT",
+                    "visitor": {
+                        "pass_id": visitor.pass_id,
+                        "visitor_name": visitor.visitor_name,
+                        "email_id": visitor.email_id,
+                        "mobile_number": visitor.mobile_number,
+                        "is_inside": visitor.is_inside,
+                        "entry_time": visitor.entry_time,
+                        "exit_time": visitor.exit_time,
+                        "category": visitor.category.name if visitor.category else None,
+                        "purpose_of_visit": visitor.purpose_of_visit,
+                        "coming_from": visitor.coming_from,
+                        "created_by": created_by_name,
+                    }
+                },
+                status=status.HTTP_200_OK
+            )
+
+
+
+
+
+class VisitorDashboardStatusAPIView(APIView):
+    # permission_classes = []  # add auth if needed
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]  # Require authentication
+
+    def get(self, request):
+        self.permission_required = "create_qr"
+
+        if not HasRolePermission().has_permission(request, self.permission_required):
+            return Response(
+                {"error": "Permission denied"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+
+        # ---------------- COUNTS ----------------
+        checked_in_count = Visitor.objects.filter(
+            is_inside=True,
+            is_active=True
+        ).count()
+
+        checked_out_count = Visitor.objects.filter(
+            is_inside=False,
+            entry_time__isnull=False,
+            is_active=True
+        ).count()
+
+        on_premises_count = checked_in_count  # same as inside
+
+        # ---------------- LISTS ----------------
+        on_premises_visitors = Visitor.objects.filter(
+            is_inside=True,
+            is_active=True
+        ).select_related("category")
+
+        outside_visitors = Visitor.objects.filter(
+            is_inside=False,
+            entry_time__isnull=False,
+            is_active=True
+        ).select_related("category")
+
+        return Response(
+            {
+                "counts": {
+                    "checked_in": checked_in_count,
+                    "checked_out": checked_out_count,
+                    "on_premises": on_premises_count,
+                },
+                "on_premises_visitors": [
+                    {
+                        "pass_id": v.pass_id,
+                        "visitor_name": v.visitor_name,
+                        "mobile_number": v.mobile_number,
+                        "category": v.category.name if v.category else None,
+                        "entry_time": v.entry_time,
+                    }
+                    for v in on_premises_visitors
+                ],
+                "outside_visitors": [
+                    {
+                        "pass_id": v.pass_id,
+                        "visitor_name": v.visitor_name,
+                        "exit_time": v.exit_time,
+                    }
+                    for v in outside_visitors
+                ],
+            },
+            status=status.HTTP_200_OK
+        )
+    
+
+
+class VisitorProgressAPIView(APIView):
+    # permission_classes = []
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]  # Require authentication
+
+    def get(self, request, pass_id):
+        self.permission_required = "create_qr"
+
+        if not HasRolePermission().has_permission(request, self.permission_required):
+            return Response(
+                {"error": "Permission denied"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        visitor = get_object_or_404(Visitor, pass_id=pass_id)
+
+        return Response({
+            "pass_id": visitor.pass_id,
+            "visitor_name": visitor.visitor_name,
+            "status": visitor.status,
+            "current_stage": visitor.current_stage,
+
+            "timestamps": {
+                # "approved_at": visitor.approved_at,
+                "entry_time": visitor.entry_time,
+                "exit_time": visitor.exit_time,
+            },
+
+            "actions_allowed": {
+                "can_check_in": (
+                    visitor.status == Visitor.PassStatus.APPROVED
+                    and not visitor.is_inside
+                    and visitor.entry_time is None
+                ),
+                "can_check_out": (
+                    visitor.status == Visitor.PassStatus.APPROVED
+                    and visitor.is_inside
+                ),
+            }
+        })

@@ -209,6 +209,9 @@ class Visitor(UUIDModel, TimestampedModel):
     # OTP Fields ✅
     entry_otp = models.CharField(max_length=128, null=True, blank=True)
     exit_otp = models.CharField(max_length=128, null=True, blank=True)
+    entry_otp_used = models.BooleanField(default=False)
+    exit_otp_used = models.BooleanField(default=False)
+
 
     objects = VisitorManager()
 
@@ -258,6 +261,28 @@ class Visitor(UUIDModel, TimestampedModel):
         from .services import QRCodeService
         qr_service = QRCodeService()
         qr_service.generate_visitor_qr(self)
+
+
+    @property
+    def current_stage(self):
+        if self.status == self.PassStatus.PENDING:
+            return "PENDING_APPROVAL"
+
+        if self.status == self.PassStatus.REJECTED:
+            return "REJECTED"
+
+        if self.status == self.PassStatus.EXPIRED:
+            return "EXPIRED"
+
+        if self.status == self.PassStatus.APPROVED:
+            if self.is_inside:
+                return "CHECKED_IN"
+            if self.entry_time and self.exit_time:
+                return "CHECKED_OUT"
+            return "APPROVED"
+
+        return "UNKNOWN"
+
 
     @property
     def allowed_entry_until(self):
