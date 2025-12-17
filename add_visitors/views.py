@@ -1123,6 +1123,8 @@ from django.contrib.auth.hashers import check_password
 
 
 class VerifyVisitorOTPAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
     
 
     def post(self, request):
