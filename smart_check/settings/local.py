@@ -38,3 +38,10 @@ print("🔧 LOCAL SETTINGS LOADED")
 print(f"📧 Email backend: {EMAIL_BACKEND}")
 print("💾 Database: SQLite")
 print(f"📁 Media storage: Cloudinary ({CLOUDINARY_STORAGE.get('CLOUD_NAME', 'NOT SET')})")
+
+
+from django.utils import timezone
+import pytz
+
+ist = pytz.timezone("Asia/Kolkata")
+CURRENT_TIME = timezone.now().astimezone(ist)

@@ -1,3 +1,4 @@
+
 from celery import shared_task
 from django.core.mail import send_mail
 from django.conf import settings
@@ -179,45 +180,126 @@ def cleanup_expired_visitors():
 
 
 
+@shared_task
+def send_visitor_approval_email(visitor_id):
+    import json
+    import qrcode
+    from io import BytesIO
+    from email.mime.image import MIMEImage
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.utils.html import strip_tags
+    from django.conf import settings
+    from django.contrib.auth.hashers import make_password
 
-from celery import shared_task
-from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.conf import settings
-from .models import Visitor
+    try:
+        visitor = Visitor.objects.get(id=visitor_id)
+
+        if not visitor.email_id:
+            return
+
+        # 🔐 Generate NEW OTPs on approval
+        from add_visitors.models import generate_otp
+        entry_otp_plain = generate_otp()
+        exit_otp_plain = generate_otp()
+
+        visitor.entry_otp = make_password(entry_otp_plain)
+        visitor.exit_otp = make_password(exit_otp_plain)
+        visitor.save()
+
+        # 🧾 QR DATA (same as scheduled mail)
+        visitor_data = {
+            "pass_id": visitor.pass_id,
+            "visitor_name": visitor.visitor_name,
+            "email": visitor.email_id,
+            "company": (
+                visitor.created_by.company.company_name
+                if visitor.created_by and visitor.created_by.company
+                else ""
+            ),
+            "visiting_date": visitor.visiting_date.strftime("%d-%m-%Y"),
+            "entry_otp": entry_otp_plain,
+            "exit_otp": exit_otp_plain,
+        }
+
+        qr = qrcode.make(json.dumps(visitor_data))
+        qr_io = BytesIO()
+        qr.save(qr_io, format="PNG")
+        qr_io.seek(0)
+
+        # 📧 Email content
+        # Get company name from related object if possible
+        company_name = (
+            visitor.coming_from.company_name
+            if getattr(visitor, 'coming_from', None) and hasattr(visitor.coming_from, 'company_name')
+            else ""
+        )
+        creator_company = None
+        if hasattr(visitor, 'created_by') and visitor.created_by and hasattr(visitor.created_by, 'company') and visitor.created_by.company:
+            creator_company = visitor.created_by.company.company_name
+
+        context = {
+            "visitor_name": visitor.visitor_name,
+            "company": company_name or creator_company or "",
+            "visiting_date": visitor.visiting_date,
+            "purpose_of_visit": visitor.purpose_of_visit or "",
+            "entry_otp": entry_otp_plain,
+            "exit_otp": exit_otp_plain,
+            "pass_id": visitor.pass_id,
+            "qr_cid": "approved_qr",
+        }
+
+        subject = f"Your Visit is Approved: {visitor.visitor_name}"
+        from_email = settings.DEFAULT_FROM_EMAIL
+        to_email = [visitor.email_id]
+
+        html_content = render_to_string(
+                "emails/visitor_approval.html",
+                context
+        )
+        text_content = strip_tags(html_content)
+
+        email = EmailMultiAlternatives(
+            subject,
+            text_content,
+            from_email,
+            to_email
+        )
+        email.attach_alternative(html_content, "text/html")
+
+        # 📎 Attach QR inline
+        img = MIMEImage(qr_io.read(), _subtype="png")
+        img.add_header("Content-ID", "<approved_qr>")
+        img.add_header("Content-Disposition", "inline", filename="qrcode.png")
+        email.attach(img)
+
+        email.send(fail_silently=False)
+
+    except Visitor.DoesNotExist:
+        pass
 
 
 @shared_task
-def send_visitor_approval_email(visitor_id):
+def send_rejected_visit_email(visitor_id, rejection_reason):
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.utils.html import strip_tags
+    from django.conf import settings
     try:
         visitor = Visitor.objects.get(id=visitor_id)
-        host = visitor.host_employee
-
-        # These links should point to your site endpoint that handles approval via browser
-        approve_url = f"{settings.BASE_URL}/visitor/decision/{visitor.id}/?action=approve"
-        reject_url = f"{settings.BASE_URL}/visitor/decision/{visitor.id}/?action=reject"
-
+        if not visitor.email_id:
+            return
         context = {
-            "host_name": host.get_full_name() if host else "",
             "visitor_name": visitor.visitor_name,
-            "company": visitor.coming_from.company_name if visitor.coming_from else '',
-            "visiting_date": visitor.visiting_date,
-            "visiting_time": visitor.visiting_time,
-            "approve_url": approve_url,
-            "reject_url": reject_url
+            "rejection_reason": rejection_reason or "No reason provided",
         }
-
-        subject = f"[Approval Required] Visitor: {visitor.visitor_name}"
+        subject = f"Your Visit Request Was Rejected"
         from_email = settings.DEFAULT_FROM_EMAIL
-        to_email = [host.email] if host else []
-
-        # Render email content (we'll create the templates next)
-        text_content = render_to_string("emails/visitor_approval.txt", context)
-        html_content = render_to_string("emails/visitor_approval.html", context)
-
-        msg = EmailMultiAlternatives(subject, text_content, from_email, to_email)
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-
+        to_email = [visitor.email_id]
+        html_content = render_to_string("emails/visitor_rejected.html", context)
+        text_content = strip_tags(html_content)
+        email = EmailMultiAlternatives(subject, text_content, from_email, to_email)
+        email.attach_alternative(html_content, "text/html")
+        email.send(fail_silently=False)
     except Visitor.DoesNotExist:
         pass

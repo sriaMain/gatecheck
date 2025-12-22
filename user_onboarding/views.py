@@ -28,6 +28,9 @@ class CompanyAPIView(APIView):
         if company_id:
             try:
                 organisation = Company.objects.get(id=company_id)
+                # Check if user is superuser or belongs to this company
+                if not request.user.is_superuser and getattr(request.user, 'company_id', None) != organisation.id:
+                    return Response({"error": "You do not have access to view this organization."}, status=status.HTTP_403_FORBIDDEN)
                 serializer = CompanySerializer(organisation)
                 return Response(serializer.data)
             except Company.DoesNotExist:

@@ -33,15 +33,24 @@ class VisitorLogSerializer(serializers.ModelSerializer):
 class VisitorListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for listing visitors"""
     category_name = serializers.CharField(source='category.name', read_only=True)
-    company_name = serializers.CharField(source='coming_from.name', read_only=True)
+    # company_name = serializers.CharField(source='coming_from.name', read_only=True)
+    company_name = serializers.SerializerMethodField()
     qr_code_url = serializers.SerializerMethodField()
     created_by = serializers.CharField(source='created_by.username', read_only=True)
     class Meta:
         model = Visitor
         fields = [
-            'id', 'pass_id', 'visitor_name', 'mobile_number', 'visiting_date', 
-            'visiting_time', 'status', 'category_name', 'company_name', 'is_inside', 'qr_code_url', 'email_id', 'pass_type',"created_by"
+            'id', 'pass_id', 'visitor_name', 'mobile_number', 'visiting_date', 'current_stage',
+            'visiting_time', 'status', 'category_name', 'company_name', 'is_inside', 'qr_code_url', 'email_id', 'pass_type',"created_by","purpose_of_visit"
         ]
+
+    def get_company_name(self, obj):
+        """
+        Return company name of the user who created the visitor
+        """
+        if obj.created_by and obj.created_by.company:
+            return obj.created_by.company.company_name
+        return None
     
 
     def get_qr_code_url(self, obj):

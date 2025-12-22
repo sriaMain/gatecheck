@@ -8,7 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
+from roles_creation.models import UserRole
+from .tasks import send_visitor_approval_email
 from datetime import date
+# from user_onboarding.models import User
+from login.models import User
 
 from .models import Visitor, Company, Category, Vehicle, VisitorLog
 from .serializers import (
@@ -17,13 +21,14 @@ from .serializers import (
 )
 from django.contrib.auth.hashers import make_password
 from add_visitors.models import generate_otp
-from rest_framework_simplejwt.authentication import JWTAuthentication 
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAdminUser
 from django.db import transaction
 from datetime import datetime
 from add_visitors.tasks import send_visit_scheduled_email
 from .services import QRCodeService
 from django.core.paginator import Paginator
+from .tasks import send_rejected_visit_email
 
 from rest_framework import status
 import logging
@@ -34,8 +39,8 @@ class BaseAPIView(APIView):
     """Base API view with common functionality"""
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]  # Set your authentication classes here if needed
-    
-    
+
+
     def get_paginated_response(self, queryset, serializer_class, request):
         """Helper method for pagination"""
         from rest_framework.pagination import PageNumberPagination
@@ -53,45 +58,61 @@ from add_visitors.models import generate_otp
 
 class VisitorListAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication] 
-    
+    authentication_classes = [JWTAuthentication]
+
+
+   
+
 
     def get(self, request):
-        self.permission_required = "view_visitors"
-        if not HasRolePermission().has_permission(request, self.permission_required):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        self.permission_required = "view_visitor"
 
-        user_company = getattr(request.user, 'company', None)
-        if request.user.is_superuser:
-            queryset = Visitor.objects.filter(is_active=True).order_by('-created_at')
-        elif user_company and request.user.is_staff:
+        user = request.user
+        user_company = getattr(user, "company", None)
+
+        # 🔐 Permission check (skip for superuser)
+        if not user.is_superuser and not HasRolePermission().has_permission(
+            request, self.permission_required
+        ):
+            return Response(
+                {"error": "You are not allowed to view visitors"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # ================= SUPERUSER =================
+        if user.is_superuser:
+            queryset = Visitor.objects.filter(is_active=True)
+
+        # ================= ORG ADMIN =================
+        elif user.groups.filter(name__iexact="Admin").exists():
             queryset = Visitor.objects.filter(
-                created_by__company=user_company,
-                is_active=True
-            ).order_by('-created_at')
+                is_active=True,
+                created_by__company=user_company
+            ).exclude(
+                created_by__is_superuser=True   # 🚨 THIS WAS MISSING
+            )
+
+        # ================= EMPLOYEE =================
         else:
             queryset = Visitor.objects.filter(
-                created_by=request.user,
-                is_active=True
-            ).order_by('-created_at')
-
-        search = request.query_params.get('search', '')
-        if search:
-            queryset = queryset.filter(
-
-                Q(visitor_name__icontains=search) |
-                Q(mobile_number__icontains=search) |
-                Q(pass_id__icontains=search)
+                is_active=True,
+                created_by=user
             )
-        # return Response(VisitorListSerializer(queryset, many=True).data)
-        # VisitorListSerializer(queryset, many=True, context={'request': request}).data
-        serializer = VisitorListSerializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data)
 
-  
+        queryset = queryset.order_by("-created_at")
+
+        serializer = VisitorListSerializer(
+            queryset, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+    
+
+
 
     def post(self, request):
-
         self.permission_required = "create_visitor"
         if not HasRolePermission().has_permission(request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
@@ -102,23 +123,18 @@ class VisitorListAPIView(APIView):
                 with transaction.atomic():
                     visitor = serializer.save(created_by=request.user)
 
-                    # -------------------------------------------
-                    # ✅ AUTO APPROVE LOGIC BASED ON visiting_date
-                    # -------------------------------------------
                     from datetime import date
-
-                    visiting_date = visitor.visiting_date   # <-- correct field
                     today = date.today()
 
-                    if visiting_date > today:
-                        visitor.status = "APPROVED"   # Future date → auto approve
+                    # ---------------- STATUS LOGIC ----------------
+                    if visitor.visiting_date > today:
+                        visitor.status = Visitor.PassStatus.APPROVED
                     else:
-                        visitor.status = "PENDING"    # Today → pending approval
+                        visitor.status = Visitor.PassStatus.PENDING
 
                     visitor.save()
-                    # -------------------------------------------
 
-                    # Generate OTPs
+                    # ---------------- OTP GENERATION ----------------
                     entry_otp_plain = generate_otp()
                     exit_otp_plain = generate_otp()
 
@@ -126,20 +142,23 @@ class VisitorListAPIView(APIView):
                     visitor.exit_otp = make_password(exit_otp_plain)
                     visitor.save()
 
-                    logger.info(f"Visitor saved with ID: {visitor.id}")
                     QRCodeService().generate_visitor_qr(visitor)
 
-                    # transaction.on_commit(lambda: send_visit_scheduled_email.apply_async(
-                    #     args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
-                    #     countdown=2
-                    # ))
-                    # Direct email sending (no Celery)
-                    send_visit_scheduled_email(str(visitor.id), entry_otp_plain, exit_otp_plain)
+                    # ---------------- EMAIL LOGIC (FIX) ----------------
+                    if visitor.status == Visitor.PassStatus.APPROVED:
+                        # ✅ Send mail ONLY if approved
+                        send_visit_scheduled_email(
+                            str(visitor.id),
+                            entry_otp_plain,
+                            exit_otp_plain
+                        )
 
+                    response_data = VisitorDetailSerializer(
+                        visitor, context={'request': request}
+                    ).data
 
-                    response_data = VisitorDetailSerializer(visitor, context={'request': request}).data
-                    response_data['message'] = 'Visitor created successfully'
-                    response_data['email_status'] = "Visit scheduled email task triggered"
+                    response_data["message"] = "Visitor created successfully"
+                    response_data["status"] = visitor.status
 
                     return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -156,24 +175,12 @@ class VisitorListAPIView(APIView):
 
 
 
+
 from rest_framework.exceptions import PermissionDenied
 class VisitorDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
-    # def get_object(self, pk,request):
-    #     self.permission_required = "view_visitors"
-    #     if not HasRolePermission().has_permission(request, self.permission_required):
-    #         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-    #     return get_object_or_404(Visitor, pk=pk, is_active=True)
-
-    # def get(self, request, pk):
-    #     self.permission_required = "view_visitors"
-    #     if not HasRolePermission().has_permission(request, self.permission_required):
-    #         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-    #     visitor = self.get_object(pk)
-    #     serializer = VisitorListSerializer(visitor, context={'request': request})
-    #     return Response(serializer.data)
     def get_object(self, request, pk):
     # Permission check
         self.permission_required = "view_visitors"
@@ -209,182 +216,11 @@ class VisitorDetailAPIView(APIView):
         visitor.is_active = False
         visitor.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
 
 
 
 
-# class VisitorRescheduleAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-#     authentication_classes = [JWTAuthentication]
-    
 
-    # def post(self, request, pk):
-    #     self.permission_required = "create_reschedule"
-    #     if not HasRolePermission().has_permission(request, self.permission_required):
-    #         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-    #     visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
-
-    #     # Prevent rescheduling if visitor has already entered or is currently inside
-    #     if visitor.entry_time is not None or visitor.is_inside:
-    #         return Response(
-    #             {"error": "Visitor has already entered. Rescheduling not allowed."},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     new_date = request.data.get("new_date")
-    #     new_time = request.data.get("new_time")
-
-    #     if not new_date or not new_time:
-    #         return Response(
-    #             {"error": "Both 'new_date' and 'new_time' are required."},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     # Parse date and time strings
-    #     try:
-    #         new_date_obj = datetime.strptime(new_date, "%Y-%m-%d").date()
-    #         new_time_obj = datetime.strptime(new_time, "%H:%M:%S").time()
-    #     except ValueError:
-    #         return Response(
-    #             {"error": "Invalid date or time format. Use YYYY-MM-DD and HH:MM:SS."},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     # Check that the new date is today or in the future
-    #     if new_date_obj < localdate():
-    #         return Response(
-    #             {"error": "New visiting date must be today or in the future."},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     try:
-    #         with transaction.atomic():
-    #             # Update visitor with new schedule
-    #             visitor.visiting_date = new_date_obj
-    #             visitor.visiting_time = new_time_obj
-    #             visitor.valid_until = None
-    #             visitor.modified_by = request.user
-    #             visitor.save()
-
-    #             otp_sent = False
-
-    #             # Log dates to help debugging
-    #             logger.info(f"Rescheduling visitor pass {visitor.pass_id} to {new_date_obj} {new_time_obj}")
-    #             logger.info(f"Current local date: {localdate()}")
-
-    #             # Regenerate and send OTP only if the new date is today (local timezone)
-    #             if new_date_obj == localdate():
-    #                 # Generate new OTPs for entry and exit
-    #                 entry_otp_plain = generate_otp()
-    #                 exit_otp_plain = generate_otp()
-
-    #                 # Hash and save generated OTPs
-    #                 visitor.entry_otp = make_password(entry_otp_plain)
-    #                 visitor.exit_otp = make_password(exit_otp_plain)
-    #                 visitor.save()
-
-    #                 # Schedule sending OTP via Celery after transaction commits
-    #                 transaction.on_commit(lambda: send_visit_scheduled_email.apply_async(
-    #                     args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
-    #                     countdown=2
-    #                 ))
-
-    #                 otp_sent = True
-
-    #             return Response({
-    #                 "message": "Visitor pass rescheduled successfully.",
-    #                 "new_date": str(visitor.visiting_date),
-    #                 "new_time": str(visitor.visiting_time),
-    #                 "pass_id": visitor.pass_id,
-    #                 "otp_sent": otp_sent
-    #             }, status=status.HTTP_200_OK)
-
-    #     except Exception as e:
-    #         logger.error(f"Reschedule error for visitor pass {pk}: {str(e)}", exc_info=True)
-    #         return Response(
-    #             {"error": "Failed to reschedule visitor. Please try again."},
-    #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    #         )
-
-   
-
-    # def post(self, request, pk):
-    #         self.permission_required = "create_reschedule"
-    #         if not HasRolePermission().has_permission(request, self.permission_required):
-    #             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-
-    #         visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
-
-    #         # Prevent rescheduling after entering
-    #         if visitor.entry_time is not None or visitor.is_inside:
-    #             return Response(
-    #                 {"error": "Visitor has already entered. Rescheduling not allowed."},
-    #                 status=status.HTTP_400_BAD_REQUEST
-    #             )
-
-    #         new_date = request.data.get("new_date")
-    #         new_time = request.data.get("new_time")
-
-    #         if not new_date or not new_time:
-    #             return Response(
-    #                 {"error": "Both 'new_date' and 'new_time' are required."},
-    #                 status=status.HTTP_400_BAD_REQUEST
-    #             )
-
-    #         try:
-    #             new_date_obj = datetime.strptime(new_date, "%Y-%m-%d").date()
-    #             new_time_obj = datetime.strptime(new_time, "%H:%M:%S").time()
-    #         except ValueError:
-    #             return Response(
-    #                 {"error": "Invalid date or time format. Use YYYY-MM-DD and HH:MM:SS."},
-    #                 status=status.HTTP_400_BAD_REQUEST
-    #             )
-
-    #         if new_date_obj < localdate():
-    #             return Response(
-    #                 {"error": "New visiting date must be today or in the future."},
-    #                 status=status.HTTP_400_BAD_REQUEST
-    #             )
-
-    #         try:
-    #             with transaction.atomic():
-
-    #                 # Update schedule
-    #                 visitor.visiting_date = new_date_obj
-    #                 visitor.visiting_time = new_time_obj
-    #                 visitor.valid_until = None
-    #                 visitor.modified_by = request.user
-
-    #                 # ALWAYS generate OTP — even for future
-    #                 entry_otp_plain = generate_otp()
-    #                 exit_otp_plain = generate_otp()
-
-    #                 visitor.entry_otp = make_password(entry_otp_plain)
-    #                 visitor.exit_otp = make_password(exit_otp_plain)
-
-    #                 visitor.save()
-
-    #                 # Always send email
-    #                 transaction.on_commit(lambda: send_visit_scheduled_email(
-    #                     args=[str(visitor.id), entry_otp_plain, exit_otp_plain],
-    #                     countdown=1
-    #                 ))
-
-    #                 return Response({
-    #                     "message": "Visitor pass rescheduled successfully.",
-    #                     "new_date": str(visitor.visiting_date),
-    #                     "new_time": str(visitor.visiting_time),
-    #                     "pass_id": visitor.pass_id,
-    #                     "otp_sent": True
-    #                 }, status=status.HTTP_200_OK)
-
-    #         except Exception as e:
-    #             logger.error(f"Reschedule error: {str(e)}", exc_info=True)
-    #             return Response(
-    #                 {"error": f"Failed to reschedule visitor: {str(e)}"},
-    #                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    #             )
 
 class VisitorRescheduleAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -479,25 +315,38 @@ class VisitorApprovalAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    
+
     def post(self, request, pk):
         self.permission_required = "create_approval"
         if not HasRolePermission().has_permission(request, self.permission_required):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'error': 'Permission denied.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
         action = request.data.get('action')
         rejection_reason = request.data.get('rejection_reason', '')
 
         if action not in ['approve', 'reject']:
-            return Response({'error': 'Invalid action. Use "approve" or "reject".'},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Invalid action. Use "approve" or "reject".'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if visitor.status != Visitor.PassStatus.PENDING:
-            return Response({'error': f'Cannot {action} visitor with status {visitor.status}'},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': f'Cannot {action} visitor with status {visitor.status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # ---------------- APPROVE ----------------
         if action == 'approve':
             visitor.status = Visitor.PassStatus.APPROVED
             visitor.rejection_reason = ''
+
+        # ---------------- REJECT ----------------
         else:
             visitor.status = Visitor.PassStatus.REJECTED
             visitor.rejection_reason = rejection_reason or "Rejected by host"
@@ -505,13 +354,30 @@ class VisitorApprovalAPIView(APIView):
         visitor.approved_by = request.user
         visitor.approved_at = timezone.now()
 
-        # ✅ Catch validation errors (e.g., visiting date is in the past)
         try:
             visitor.save()
         except ValidationError as e:
-            # Extract error messages cleanly
-            errors = {field: [str(msg) for msg in msgs] for field, msgs in e.message_dict.items()}
-            return Response({'validation_error': errors}, status=status.HTTP_400_BAD_REQUEST)
+            errors = {
+                field: [str(msg) for msg in msgs]
+                for field, msgs in e.message_dict.items()
+            }
+            return Response(
+                {'validation_error': errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+        # ================= EMAIL TRIGGER (FIX) =================
+        if action == "approve":
+            print(f"[DEBUG] Calling send_visitor_approval_email Celery task for visitor_id={visitor.id}")
+            # Use Celery for async email sending
+            send_visitor_approval_email(visitor.id)
+
+        elif action == "reject":
+            send_rejected_visit_email(
+                visitor.id,
+                visitor.rejection_reason
+            )
 
         return Response(
             VisitorDetailSerializer(visitor, context={'request': request}).data,
@@ -657,9 +523,9 @@ class VisitorEntryExitView(APIView):
 
 class CategoryListAPIView(BaseAPIView):
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication] 
+    authentication_classes = [JWTAuthentication]
     """API view for managing categories"""
-    
+
     def get(self, request):
         """List all categories"""
         self.permission_required = "view_category"
@@ -668,7 +534,7 @@ class CategoryListAPIView(BaseAPIView):
         categories = Category.objects.filter()
         serializer = CategorySerializer(categories, many=True)
         return Response(serializer.data)
-    
+
     def post(self, request):
         """Create a new category"""
         self.permission_required = "create_category"
@@ -679,20 +545,20 @@ class CategoryListAPIView(BaseAPIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def put(self, request, pk):
         """Update an existing category"""
         self.permission_required = "update_category"
         if not HasRolePermission.has_permission(self, request, self.permission_required):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        
+
         category = get_object_or_404(Category, pk=pk)
         serializer = CategorySerializer(category, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def delete(self, request, pk):
 
         """Delete a category"""
@@ -706,9 +572,9 @@ class CategoryListAPIView(BaseAPIView):
 
 class VehicleListAPIView(BaseAPIView):
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication] 
+    authentication_classes = [JWTAuthentication]
     """API view for managing vehicles"""
-    
+
 
     def get(self, request, uuid=None):
         if uuid:
@@ -722,11 +588,11 @@ class VehicleListAPIView(BaseAPIView):
             search = request.query_params.get('search', '')
             if search:
                 vehicles = vehicles.filter(vehicle_number__icontains=search)
-            
+
             serializer = VehicleSerializer(vehicles, many=True)
             return Response(serializer.data)
 
-    
+
     def post(self, request):
         """Create a new vehicle"""
         serializer = VehicleSerializer(data=request.data)
@@ -734,7 +600,7 @@ class VehicleListAPIView(BaseAPIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def put(self, request, uuid):
         """Update an existing vehicle"""
         vehicle = get_object_or_404(Vehicle, pk=uuid, is_active=True)
@@ -743,26 +609,26 @@ class VehicleListAPIView(BaseAPIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def delete(self, request, uuid):
         """Delete a vehicle"""
         vehicle = get_object_or_404(Vehicle, pk=uuid, is_active=True)
         vehicle.is_active = False
         vehicle.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
 
-        
+
+
 
 class DashboardAPIView(BaseAPIView):
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication] 
+    authentication_classes = [JWTAuthentication]
     """API view for dashboard statistics"""
-    
+
     def get(self, request):
         """Get dashboard statistics"""
         today = timezone.now().date()
-        
+
         stats = {
             'total_visitors_today': Visitor.objects.filter(
                 visiting_date=today, is_active=True
@@ -776,95 +642,21 @@ class DashboardAPIView(BaseAPIView):
             'total_visitors': Visitor.objects.filter(is_active=True).count(),
             'approved_today': Visitor.objects.filter(
                 visiting_date=today, status='APPROVED', is_active=True
-            ).count(),      
+            ).count(),
         }
-        
+
         return Response(stats)
 
 import logging
 logger = logging.getLogger(__name__)
 
-# class QRCodeScanAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-#     authentication_classes = [JWTAuthentication]
-#     def post(self, request):
-#         self.permission_required = "create_qr"
 
-#         # 🔐 Permission check
-#         if not HasRolePermission().has_permission(request, self.permission_required):
-#             return Response(
-#                 {"error": "Permission denied"},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-#         pass_id = request.data.get("pass_id")
-
-#         if not pass_id:
-#             return Response({"error": "pass_id is required"}, status=400)
-
-#         pass_id = pass_id.strip()
-
-#         try:
-#             visitor = Visitor.objects.get(pass_id__iexact=pass_id)
-#         except Visitor.DoesNotExist:
-#             return Response({"error": "Invalid QR or pass ID"}, status=400)
-
-#         # 🚫 Already inside
-#         if visitor.is_inside:
-#             return Response(
-#                 {
-#                     "error": "Visitor already checked in",
-#                     "status": "Inside",
-#                     "entry_time": visitor.entry_time
-#                 },
-#                 status=400
-#             )
-
-#         # 🚫 Inactive pass (optional business rule)
-#         if not visitor.is_active:
-#             return Response(
-#                 {"error": "Visitor pass is inactive"},
-#                 status=400
-#             )
-
-#         # ✅ Check-in
-#         visitor.is_inside = True
-#         visitor.entry_time = timezone.now()
-#         visitor.save()
-
-        
-#         created_by_name = None
-#         if visitor.created_by:
-#             created_by_name = (
-#                 visitor.created_by.get_full_name()
-#                 or visitor.created_by.username
-#                 or visitor.created_by.email
-#             )
-
-#         return Response(
-#         {
-#             "message": "Visitor checked in successfully",
-#             "status": "Inside",
-#             "pass_id": visitor.pass_id,
-#             "entry_time": visitor.entry_time,
-
-#             "visitor_name": visitor.visitor_name,
-#             "email_id": visitor.email_id,
-#             "visiting_date": visitor.visiting_date,
-
-#             "category": visitor.category.name if visitor.category else None,
-#             "purpose_of_visit": visitor.purpose_of_visit,
-#             "phone": visitor.mobile_number,
-#             # "coming_from": visitor.coming_from,
-
-#             "created_by": created_by_name,
-#             "created_by_id": visitor.created_by.id if visitor.created_by else None,
-#         },
-#         status=200
-#     )
 
 class QRCodeScanAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
+    
 
     def post(self, request):
         self.permission_required = "create_qr"
@@ -876,7 +668,6 @@ class QRCodeScanAPIView(APIView):
             )
 
         pass_id = request.data.get("pass_id")
-
         if not pass_id:
             return Response(
                 {"error": "pass_id is required"},
@@ -886,27 +677,57 @@ class QRCodeScanAPIView(APIView):
         pass_id = pass_id.strip()
 
         try:
-            visitor = Visitor.objects.get(pass_id__iexact=pass_id)
+            visitor = Visitor.objects.select_related(
+                "created_by__company"
+            ).get(pass_id__iexact=pass_id)
         except Visitor.DoesNotExist:
             return Response(
                 {"error": "Invalid QR or pass ID"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-       
+        # =====================================================
+        # 🔐 COMPANY ISOLATION CHECK (IMPORTANT)
+        # =====================================================
+        user = request.user
 
+        if not user.is_superuser:
+            user_company = getattr(user, "company", None)
+            visitor_company = (
+                visitor.created_by.company
+                if visitor.created_by and visitor.created_by.company
+                else None
+            )
+
+            if not user_company or not visitor_company:
+                return Response(
+                    {"error": "Company information missing"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            if user_company.id != visitor_company.id:
+                return Response(
+                    {
+                        "error": "You are not allowed to scan visitors of another company"
+                    },
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # =====================================================
+        # ENTRY / EXIT LOGIC
+        # =====================================================
         if not visitor.is_inside:
-            # Trying to ENTER
+            # ENTRY
 
-            # Prevent check-in before or after scheduled date (only allow on the scheduled date)
             today = timezone.now().date()
             if visitor.visiting_date != today:
                 return Response(
-                    {"error": "Check-in allowed only on the scheduled visiting date."},
+                    {
+                        "error": "Check-in allowed only on the scheduled visiting date."
+                    },
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # ❌ Block re-entry for ONE_TIME pass
             if (
                 visitor.pass_type == Visitor.PassType.ONE_TIME
                 and visitor.exit_time is not None
@@ -916,10 +737,9 @@ class QRCodeScanAPIView(APIView):
                         "error": "One-time pass already used. Re-entry not allowed.",
                         "status": "Outside"
                     },
-                    status=400
+                    status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # ✅ ENTRY
             visitor.is_inside = True
             visitor.entry_time = timezone.now()
             visitor.exit_time = None
@@ -929,7 +749,7 @@ class QRCodeScanAPIView(APIView):
             message = "Visitor checked in successfully"
 
         else:
-            # Trying to EXIT
+            # EXIT
             visitor.is_inside = False
             visitor.exit_time = timezone.now()
             visitor.save()
@@ -937,22 +757,21 @@ class QRCodeScanAPIView(APIView):
             action = "EXIT"
             message = "Visitor checked out successfully"
 
-
-
-        # 🧾 Created by fallback
+        # =====================================================
+        # RESPONSE
+        # =====================================================
+        created_by_name = None
         if visitor.created_by:
             created_by_name = (
                 visitor.created_by.get_full_name()
                 or visitor.created_by.username
                 or visitor.created_by.email
             )
-        else:
-            created_by_name = None
 
         return Response(
             {
                 "message": message,
-                "action": action,            # ENTRY or EXIT
+                "action": action,
                 "status": "Inside" if visitor.is_inside else "Visited",
 
                 "pass_id": visitor.pass_id,
@@ -966,7 +785,6 @@ class QRCodeScanAPIView(APIView):
                 "phone": visitor.mobile_number,
 
                 "category": visitor.category.name if visitor.category else None,
-                # "coming_from": visitor.coming_from,
 
                 "created_by": created_by_name,
                 "created_by_id": visitor.created_by.id if visitor.created_by else None,
@@ -977,12 +795,11 @@ class QRCodeScanAPIView(APIView):
 
 
 
-
 from rest_framework.permissions import AllowAny
 from django.utils.timezone import localdate
 class VisitorFilterAPIView(APIView):
     permission_classes = [AllowAny]
-    page_size = 10  
+    page_size = 10
 
     def get(self, request):
         category = request.GET.get('category')
@@ -1040,7 +857,7 @@ class VisitorFilterAPIView(APIView):
             'current_page': page,
             'results': serializer.data
         }, status=status.HTTP_200_OK)
-    
+
 # GET /api/visitor-status/<visitor_id>/
 
 from rest_framework import status
@@ -1048,8 +865,8 @@ from .models import Visitor
 from user_onboarding.models import Company
 class CompanyVisitorsAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]    
-    
+    authentication_classes = [JWTAuthentication]
+
 
     def get(self, request, company_id):
         # First, check for the specific permission needed to view visitors.
@@ -1065,7 +882,7 @@ class CompanyVisitorsAPIView(APIView):
 
         # Filter visitors that are coming from that company.
         visitors = Visitor.objects.filter(coming_from=company)
-        
+
         # Serialize the data and return it.
         serializer = VisitorDetailSerializer(visitors, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1125,7 +942,7 @@ from django.contrib.auth.hashers import check_password
 class VerifyVisitorOTPAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    
+
 
     def post(self, request):
         self.permission_required = "create_qr"
@@ -1267,7 +1084,26 @@ class VerifyVisitorOTPAPIView(APIView):
 
 
 class VisitorDashboardStatusAPIView(APIView):
-    # permission_classes = []  # add auth if needed
+    # permission_classes = []
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]  # Require authentication
+
+   
+    
+
+IST = pytz.timezone("Asia/Kolkata")
+
+def to_ist_24(dt):
+    """
+    Convert UTC datetime to IST and return 24-hour formatted string
+    """
+    if not dt:
+        return None
+    ist_time = timezone.localtime(dt, IST)
+    return ist_time.strftime("%Y-%m-%d %H:%M:%S")  # ✅ 24-hour format
+
+# class VisitorLiveStatusAPIView(APIView):
+class VisitorDashboardStatusAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]  # Require authentication
 
@@ -1279,36 +1115,61 @@ class VisitorDashboardStatusAPIView(APIView):
                 {"error": "Permission denied"},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
+        # ---------------- QUERY PARAMS ----------------
+        today_param = request.query_params.get("today")
+        date_param = request.query_params.get("date")
+
+        filter_kwargs = {"is_active": True}
+
+        # ?today=true (IST date)
+        if today_param == "true":
+            filter_kwargs["visiting_date"] = timezone.localdate()
+
+        # ?date=YYYY-MM-DD
+        elif date_param:
+            try:
+                filter_kwargs["visiting_date"] = datetime.strptime(
+                    date_param, "%Y-%m-%d"
+                ).date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # ---------------- COUNTS ----------------
         checked_in_count = Visitor.objects.filter(
             is_inside=True,
-            is_active=True
+            **filter_kwargs
         ).count()
 
         checked_out_count = Visitor.objects.filter(
             is_inside=False,
             entry_time__isnull=False,
-            is_active=True
+            **filter_kwargs
         ).count()
 
-        on_premises_count = checked_in_count  # same as inside
+        on_premises_count = checked_in_count
 
         # ---------------- LISTS ----------------
         on_premises_visitors = Visitor.objects.filter(
             is_inside=True,
-            is_active=True
+            **filter_kwargs
         ).select_related("category")
 
         outside_visitors = Visitor.objects.filter(
             is_inside=False,
             entry_time__isnull=False,
-            is_active=True
+            **filter_kwargs
         ).select_related("category")
 
         return Response(
             {
+                "filters": {
+                    "today": today_param == "true",
+                    "date": filter_kwargs.get("visiting_date"),
+                },
                 "counts": {
                     "checked_in": checked_in_count,
                     "checked_out": checked_out_count,
@@ -1320,7 +1181,7 @@ class VisitorDashboardStatusAPIView(APIView):
                         "visitor_name": v.visitor_name,
                         "mobile_number": v.mobile_number,
                         "category": v.category.name if v.category else None,
-                        "entry_time": v.entry_time,
+                        "entry_time": to_ist_24(v.entry_time),
                     }
                     for v in on_premises_visitors
                 ],
@@ -1328,14 +1189,18 @@ class VisitorDashboardStatusAPIView(APIView):
                     {
                         "pass_id": v.pass_id,
                         "visitor_name": v.visitor_name,
-                        "exit_time": v.exit_time,
+                        "mobile_number": v.mobile_number,
+                        "entry_time": to_ist_24(v.entry_time),
+                        "exit_time": to_ist_24(v.exit_time),
                     }
                     for v in outside_visitors
                 ],
             },
             status=status.HTTP_200_OK
         )
-    
+
+
+
 
 
 class VisitorProgressAPIView(APIView):

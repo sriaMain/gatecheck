@@ -1,0 +1,21 @@
+
+
+
+Hello {{ visitor_name }},
+
+Your visit has been approved!
+
+Details:
+Visitor Name: {{ visitor_name }}
+Purpose of Visit: {{ purpose_of_visit }}
+Company: {{ company }}
+Visiting Date: {{ visiting_date }}
+Visiting Time: {{ visiting_time }}
+
+Entry OTP: {{ entry_otp }}
+Exit OTP: {{ exit_otp }}
+
+Please use the above OTPs for entry and exit.
+
+Thank you,
+Smart Check Team
