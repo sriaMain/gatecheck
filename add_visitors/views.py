@@ -61,7 +61,7 @@ class VisitorListAPIView(APIView):
     authentication_classes = [JWTAuthentication]
 
 
-   
+
 
 
     def get(self, request):
@@ -108,33 +108,39 @@ class VisitorListAPIView(APIView):
 
 
 
-    
+
+
 
 
 
     def post(self, request):
         self.permission_required = "create_visitor"
         if not HasRolePermission().has_permission(request, self.permission_required):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'error': 'Permission denied.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         serializer = VisitorCreateUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                with transaction.atomic():
-                    visitor = serializer.save(created_by=request.user)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-                    from datetime import date
-                    today = date.today()
+        try:
+            with transaction.atomic():
+                visitor = serializer.save(created_by=request.user)
 
-                    # ---------------- STATUS LOGIC ----------------
-                    if visitor.visiting_date > today:
-                        visitor.status = Visitor.PassStatus.APPROVED
-                    else:
-                        visitor.status = Visitor.PassStatus.PENDING
+                today = date.today()
 
-                    visitor.save()
+                # ---------------- STATUS LOGIC ----------------
+                if visitor.visiting_date > today:
+                    visitor.status = Visitor.PassStatus.APPROVED
+                else:
+                    visitor.status = Visitor.PassStatus.PENDING
 
-                    # ---------------- OTP GENERATION ----------------
+                visitor.save()
+
+                # ---------------- FUTURE DATE → GENERATE QR + OTP + MAIL ----------------
+                if visitor.status == Visitor.PassStatus.APPROVED:
                     entry_otp_plain = generate_otp()
                     exit_otp_plain = generate_otp()
 
@@ -144,33 +150,28 @@ class VisitorListAPIView(APIView):
 
                     QRCodeService().generate_visitor_qr(visitor)
 
-                    # ---------------- EMAIL LOGIC (FIX) ----------------
-                    if visitor.status == Visitor.PassStatus.APPROVED:
-                        # ✅ Send mail ONLY if approved
-                        send_visit_scheduled_email(
-                            str(visitor.id),
-                            entry_otp_plain,
-                            exit_otp_plain
-                        )
+                    send_visit_scheduled_email(
+                        str(visitor.id),
+                        entry_otp_plain,
+                        exit_otp_plain
+                    )
 
-                    response_data = VisitorDetailSerializer(
-                        visitor, context={'request': request}
-                    ).data
+                response_data = VisitorDetailSerializer(
+                    visitor,
+                    context={'request': request}
+                ).data
 
-                    response_data["message"] = "Visitor created successfully"
-                    response_data["status"] = visitor.status
+                response_data["message"] = "Visitor created successfully"
+                response_data["status"] = visitor.status
 
-                    return Response(response_data, status=status.HTTP_201_CREATED)
+                return Response(response_data, status=status.HTTP_201_CREATED)
 
-            except Exception as e:
-                logger.error(f"Error creating visitor: {str(e)}")
-                return Response(
-                    {'error': 'Failed to create visitor. Please try again.'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        except Exception as e:
+            logger.error(f"Visitor creation failed: {str(e)}")
+            return Response(
+                {'error': 'Failed to create visitor.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 
@@ -315,6 +316,8 @@ class VisitorApprovalAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+
+
     
 
     def post(self, request, pk):
@@ -324,14 +327,16 @@ class VisitorApprovalAPIView(APIView):
                 {'error': 'Permission denied.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-
+        logger.debug(f"[DEBUG] VisitorApprovalAPIView.post called with pk={pk}, method={request.method}, data={request.data}")
+        print(f"[DEBUG] VisitorApprovalAPIView.post called with pk={pk}, method={request.method}, data={request.data}")
         visitor = get_object_or_404(Visitor, pk=pk, is_active=True)
-        action = request.data.get('action')
-        rejection_reason = request.data.get('rejection_reason', '')
 
-        if action not in ['approve', 'reject']:
+        action = request.data.get("action")
+        rejection_reason = request.data.get("rejection_reason", "")
+
+        if action not in ["approve", "reject"]:
             return Response(
-                {'error': 'Invalid action. Use "approve" or "reject".'},
+                {'error': 'Invalid action. Use approve or reject.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -342,38 +347,35 @@ class VisitorApprovalAPIView(APIView):
             )
 
         # ---------------- APPROVE ----------------
-        if action == 'approve':
+        if action == "approve":
             visitor.status = Visitor.PassStatus.APPROVED
-            visitor.rejection_reason = ''
+            visitor.rejection_reason = ""
+            visitor.approved_by = request.user
+            visitor.approved_at = timezone.now()
+            visitor.save()
+
+            # 🔐 Generate OTPs
+            entry_otp_plain = generate_otp()
+            exit_otp_plain = generate_otp()
+
+            visitor.entry_otp = make_password(entry_otp_plain)
+            visitor.exit_otp = make_password(exit_otp_plain)
+            visitor.save()
+
+            # 🔳 Generate QR
+            QRCodeService().generate_visitor_qr(visitor)
+
+            # 📧 Send Approval Email
+            send_visitor_approval_email(visitor.id)
 
         # ---------------- REJECT ----------------
         else:
             visitor.status = Visitor.PassStatus.REJECTED
             visitor.rejection_reason = rejection_reason or "Rejected by host"
-
-        visitor.approved_by = request.user
-        visitor.approved_at = timezone.now()
-
-        try:
+            visitor.approved_by = request.user
+            visitor.approved_at = timezone.now()
             visitor.save()
-        except ValidationError as e:
-            errors = {
-                field: [str(msg) for msg in msgs]
-                for field, msgs in e.message_dict.items()
-            }
-            return Response(
-                {'validation_error': errors},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
-
-        # ================= EMAIL TRIGGER (FIX) =================
-        if action == "approve":
-            print(f"[DEBUG] Calling send_visitor_approval_email Celery task for visitor_id={visitor.id}")
-            # Use Celery for async email sending
-            send_visitor_approval_email(visitor.id)
-
-        elif action == "reject":
             send_rejected_visit_email(
                 visitor.id,
                 visitor.rejection_reason
@@ -656,7 +658,7 @@ class QRCodeScanAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
-    
+
 
     def post(self, request):
         self.permission_required = "create_qr"
@@ -716,17 +718,34 @@ class QRCodeScanAPIView(APIView):
         # =====================================================
         # ENTRY / EXIT LOGIC
         # =====================================================
+
         if not visitor.is_inside:
             # ENTRY
-
             today = timezone.now().date()
-            if visitor.visiting_date != today:
-                return Response(
-                    {
-                        "error": "Check-in allowed only on the scheduled visiting date."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            if visitor.pass_type == Visitor.PassType.RECURRING:
+                    valid_until = visitor.valid_until
+                    if hasattr(valid_until, 'date'):
+                        valid_until = valid_until.date()
+                    if today > valid_until:
+                        return Response(
+                            {"error": "QR is expired."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    if not (visitor.visiting_date <= today <= valid_until):
+                        return Response(
+                            {
+                                "error": "Check-in allowed only during the recurring validity period."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+            )
+            else:
+                if visitor.visiting_date != today:
+                    return Response(
+                        {
+                            "error": "Check-in allowed only on the scheduled visiting date."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
             if (
                 visitor.pass_type == Visitor.PassType.ONE_TIME
@@ -768,29 +787,30 @@ class QRCodeScanAPIView(APIView):
                 or visitor.created_by.email
             )
 
-        return Response(
-            {
-                "message": message,
-                "action": action,
-                "status": "Inside" if visitor.is_inside else "Visited",
-
-                "pass_id": visitor.pass_id,
-                "visitor_name": visitor.visitor_name,
-                "email_id": visitor.email_id,
-                "visiting_date": visitor.visiting_date,
-
-                "entry_time": visitor.entry_time,
-                "exit_time": visitor.exit_time,
-                "purpose_of_visit": visitor.purpose_of_visit,
-                "phone": visitor.mobile_number,
-
-                "category": visitor.category.name if visitor.category else None,
-
-                "created_by": created_by_name,
-                "created_by_id": visitor.created_by.id if visitor.created_by else None,
-            },
-            status=status.HTTP_200_OK
-        )
+        response_data = {
+            "message": message,
+            "action": action,
+            "status": "Inside" if visitor.is_inside else "Visited",
+            "pass_id": visitor.pass_id,
+            "visitor_name": visitor.visitor_name,
+            "email_id": visitor.email_id,
+            "visiting_date": visitor.visiting_date,
+            "entry_time": visitor.entry_time,
+            "exit_time": visitor.exit_time,
+            "purpose_of_visit": visitor.purpose_of_visit,
+            "phone": visitor.mobile_number,
+            "category": visitor.category.name if visitor.category else None,
+            "created_by": created_by_name,
+            "created_by_id": visitor.created_by.id if visitor.created_by else None,
+        }
+        # Add checkin_date and valid_until for recurring
+        if visitor.pass_type == Visitor.PassType.RECURRING:
+            response_data["checkin_date"] = today
+            valid_until = visitor.valid_until
+            if hasattr(valid_until, 'date'):
+                valid_until = valid_until.date()
+            response_data["valid_until"] = valid_until
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 
@@ -1088,8 +1108,8 @@ class VisitorDashboardStatusAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]  # Require authentication
 
-   
-    
+
+
 
 IST = pytz.timezone("Asia/Kolkata")
 

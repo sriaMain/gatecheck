@@ -41,7 +41,7 @@ class VisitorListSerializer(serializers.ModelSerializer):
         model = Visitor
         fields = [
             'id', 'pass_id', 'visitor_name', 'mobile_number', 'visiting_date', 'current_stage',
-            'visiting_time', 'status', 'category_name', 'company_name', 'is_inside', 'qr_code_url', 'email_id', 'pass_type',"created_by","purpose_of_visit"
+            'visiting_time', 'status', 'category_name', 'company_name', 'is_inside', 'qr_code_url', 'email_id', 'pass_type', 'created_by', 'purpose_of_visit', 'valid_until', 'recurring_days'
         ]
 
     def get_company_name(self, obj):
@@ -53,12 +53,20 @@ class VisitorListSerializer(serializers.ModelSerializer):
         return None
     
 
+    # def get_qr_code_url(self, obj):
+    #     request = self.context.get('request')
+    #     if not request:
+    #         logger.warning("Request not found in serializer context.")
+    #     if request and obj.qr_code and hasattr(obj.qr_code, 'url'):
+    #         return request.build_absolute_uri(obj.qr_code.url)
+    #     return None
+
     def get_qr_code_url(self, obj):
-        request = self.context.get('request')
-        if not request:
-            logger.warning("Request not found in serializer context.")
-        if request and obj.qr_code and hasattr(obj.qr_code, 'url'):
-            return request.build_absolute_uri(obj.qr_code.url)
+        if obj.status != Visitor.PassStatus.APPROVED:
+            return None
+
+        if obj.qr_code and hasattr(obj.qr_code, 'url'):
+            return obj.qr_code.url
         return None
     
     def validate(self, attrs):
@@ -111,33 +119,30 @@ class VisitorDetailSerializer(serializers.ModelSerializer):
 
   
     def get_qr_code_url(self, obj):
-        if obj.qr_code and hasattr(obj.qr_code, 'url'):
-            qr_url = obj.qr_code.url
-            # If it's already a full URL (Cloudinary), return as-is
-            if qr_url.startswith('http://') or qr_url.startswith('https://'):
+        # Only show QR code if visitor is APPROVED and today <= valid_until
+        from django.utils import timezone
+        today = timezone.now().date()
+        valid_until = getattr(obj, 'valid_until', None)
+        is_approved = getattr(obj, 'status', None) == getattr(obj.__class__, 'PassStatus').APPROVED
+        if is_approved and valid_until and today <= valid_until:
+            if obj.qr_code and hasattr(obj.qr_code, 'url'):
+                qr_url = obj.qr_code.url
+                if qr_url.startswith('http://') or qr_url.startswith('https://'):
+                    return qr_url
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(qr_url)
                 return qr_url
-            # Otherwise, build absolute URI for local files
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(qr_url)
-            return qr_url
         return None
+
+    
+
 
     def create(self, validated_data):
         company_data = validated_data.pop('coming_from')
         company = Company.objects.create(**company_data)
         visitor = Visitor.objects.create(coming_from=company, **validated_data)
-    # def create(self, validated_data):
-    # # coming_from is already a Company instance (foreign key)
-    #     coming_from = validated_data.get("coming_from")
-
-    #     # Create visitor only once
-    #     visitor = Visitor.objects.create(**validated_data)
-
-    #     # Generate QR Code
-    #     QRCodeService().generate_visitor_qr(visitor)
-
-    #     return visitor
+  
 
 
     # ✅ Generate QR Code

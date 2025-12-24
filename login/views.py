@@ -19,18 +19,20 @@ class CustomLoginTokenView(TokenObtainPairView):
     serializer_class = CustomLoginSerializer
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
+        if serializer.is_valid():
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
-        except ValidationError as exc:
-            # Convert error detail to plain string (if needed)
-            detail = exc.detail
-            if isinstance(detail, (list, dict)):
-                if isinstance(detail, dict):
-                    detail = next(iter(detail.values()))
-                if isinstance(detail, list):
-                    detail = detail[0]
-            return Response({"error": detail}, status=status.HTTP_400_BAD_REQUEST)
+        # Flatten error: return only the first error message as a string
+        errors = serializer.errors
+        # Fallback: if identifier or password is missing, always return the custom message
+        if isinstance(errors, dict):
+            if 'identifier' in errors:
+                return Response({"error": "Identifier (email / user_id / alias_name) is required."}, status=status.HTTP_400_BAD_REQUEST)
+            if 'password' in errors:
+                return Response({"error": "Password is required."}, status=status.HTTP_400_BAD_REQUEST)
+            first_key = next(iter(errors))
+            first_error = errors[first_key][0] if isinstance(errors[first_key], list) else errors[first_key]
+            return Response({"error": str(first_error)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid request."}, status=status.HTTP_400_BAD_REQUEST)
 
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]

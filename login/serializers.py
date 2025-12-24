@@ -16,8 +16,13 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        fields['identifier'] = serializers.CharField()
-        fields['password'] = serializers.CharField(write_only=True)
+        fields['identifier'] = serializers.CharField(
+            error_messages={"required": "Identifier (email / user_id / alias_name) is required."}
+        )
+        fields['password'] = serializers.CharField(
+            write_only=True,
+            error_messages={"required": "Password is required."}
+        )
         fields.pop('username', None)
         fields.pop('email', None)
         return fields
@@ -262,9 +267,18 @@ class SetNewPasswordSerializer(serializers.Serializer):
 
 
 class ResetPasswordSerializers(serializers.Serializer):
-    old_password = serializers.CharField(required=True)
-    new_password = serializers.CharField(required=True)
-    confirm_password = serializers.CharField(required=True)
+    old_password = serializers.CharField(
+        required=True,
+        error_messages={"required": "Old password is required."}
+    )
+    new_password = serializers.CharField(
+        required=True,
+        error_messages={"required": "New password is required."}
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        error_messages={"required": "Confirm password is required."}
+    )
   
    
     
@@ -276,10 +290,14 @@ class ResetPasswordSerializers(serializers.Serializer):
             raise serializers.ValidationError("Old password is incorrect.")
         return value
  
-    def validate_new_password(self, value):
-        if len(value) < 8:
-            raise serializers.ValidationError("Password must be at least 6 characters long.")
-        return value
+    def validate(self, attrs):
+        old_password = attrs.get('old_password')
+        new_password = attrs.get('new_password')
+        if len(new_password) < 8:
+            raise serializers.ValidationError({"new_password": "Password must be at least 8 characters long."})
+        if old_password == new_password:
+            raise serializers.ValidationError({"new_password": "New password cannot be the same as the old password. Please choose a different password."})
+        return attrs
  
     def save(self, **kwargs):
         """Update user password."""
